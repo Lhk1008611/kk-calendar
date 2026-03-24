@@ -60,7 +60,10 @@ import AuthCard from '@/components/auth/AuthCard.vue'
 import Login from '@/components/auth/Login.vue'
 import Register from '@/components/auth/Register.vue'
 import {sanctum, api} from "../axios";
+import { useRouter } from 'vue-router';
 
+
+const router = useRouter(); // ✅ 必须调用
 // 选项卡状态
 const activeTab = ref('login')
 
@@ -160,18 +163,17 @@ const handleLogin = async (formData) => {
         const response = await api.post('/login', formData);
         console.log(response);
         // 存储 token 等操作
+        // localStorage.setItem('token', result.token);
+
         message.text = '登录成功！正在跳转...'
         message.type = 'success'
-        setTimeout(() => {
-            // router.push('/dashboard')
-            alert('演示模式：登录成功，即将进入行事历页面')
-        }, 1000)
     } catch {
         message.text = '登录失败，请检查邮箱和密码'
         message.type = 'danger'
     } finally {
         loginLoading.value = false
     }
+    await router.push({name: 'Dashboard'});
 }
 
 const handleRegister = async (formData) => {

@@ -58,7 +58,9 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return response()->json(['message' => '已登出']);
+
+        return response()->json(['message' => '已登出'])
+            ->withCookie(cookie()->forget('laravel_session'));
     }
 
     // 获取当前用户

@@ -1,15 +1,40 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import {createRouter, createWebHistory} from 'vue-router';
 import axios from '../axios';
-import Login from '../components/auth/Login.vue';
-import Register from '../components/auth/Register.vue';
 import Home from '@/views/Home.vue'
-// import Dashboard from '../components/Dashboard.vue';
+import Layout from '@/layouts/Layout.vue';
+import Calendar from '@/views/Calendar.vue';
+import Profile from '@/views/Profile.vue';
+import Manage from '@/views/Manage.vue';
 
 const routes = [
-    { path: '/', name: 'Home', component: Home },
-    { path: '/login', component: Login },
-    { path: '/register', component: Register },
-    // { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
+    {
+        path: '/',
+        name: 'Home',
+        component: Home,
+        meta: {requiresGuest: true} // 未登录才能访问
+    },
+    {
+        path: '/dashboard',
+        component: Layout,
+        meta: {requiresAuth: true},
+        children: [
+            {
+                path: '',
+                name: 'Dashboard',
+                component: Calendar
+            },
+            {
+                path: '/profile',
+                name: 'Profile',
+                component: Profile
+            },
+            {
+                path: '/manage',
+                name: 'Manage',
+                component: Manage
+            }
+        ]
+    },
 ];
 
 const router = createRouter({
@@ -17,19 +42,15 @@ const router = createRouter({
     routes,
 });
 
-// 导航守卫：检查认证状态
-router.beforeEach(async (to, from, next) => {
-    if (to.meta.requiresAuth) {
-        try {
-            const response = await axios.get('/api/user');
-            if (response.data) {
-                next();
-            } else {
-                next('/login');
-            }
-        } catch {
-            next('/login');
-        }
+// 路由守卫：检查登录状态
+router.beforeEach((to, from, next) => {
+    const token = localStorage.getItem('token');
+    console.log(token);
+
+    if (to.meta.requiresAuth && !token ) {
+        next({name: 'Home'});
+    } else if (to.meta.requiresGuest && token) {
+        next({name: 'Dashboard'});
     } else {
         next();
     }

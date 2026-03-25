@@ -33,9 +33,7 @@ api.interceptors.response.use(
                 toast.error(data?.message || '请求参数错误');
                 break;
             case 401:
-                // 未认证：清除本地状态并跳转登录页
-                localStorage.removeItem('token'); // 或其他清除逻辑
-                toast.error('登录已过期，请重新登录');
+                toast.warning('登录已过期，请重新登录');
                 router.push({ name: 'Home' }); // 跳转到登录页
                 break;
             case 403:

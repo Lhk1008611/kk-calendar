@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Auth;
 
+use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -57,8 +58,6 @@ class AuthController extends Controller
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-
-
         return response()->json(['message' => '已登出'])
             ->withCookie(cookie()->forget('laravel_session'));
     }
@@ -66,6 +65,7 @@ class AuthController extends Controller
     // 获取当前用户
     public function user(Request $request)
     {
+        \Log::info('Auth check', ['user' => $request->user(), 'session_id' => session()->getId()]);
         return response()->json($request->user());
     }
 }

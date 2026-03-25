@@ -37,19 +37,17 @@
 <script setup>
 import {useRouter} from 'vue-router';
 import {useToast} from 'vue-toastification';
-import {api} from "../axios";
-
+import {useAuthStore} from '@/store/auth';
 
 const router = useRouter();
 const toast = useToast();
+const authStore = useAuthStore();
 
 const logout = async () => {
-    // 实际应调用后端退出接口
-    await api.post('/logout');
-    await cookieStore.delete('laravel_session');
+    await authStore.logout();      // 调用登出 action
     toast.success('已退出登录');
-    await router.push({name: 'Home'});
-};
+    router.push({name: 'Home'});
+}
 </script>
 
 <style scoped>
@@ -59,6 +57,9 @@ const logout = async () => {
 }
 
 .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 1030; /* Bootstrap 默认 navbar 的 z-index 为 1030，确保层级正确 */
     border-bottom: 1px solid #e3e6f0;
 }
 
@@ -68,7 +69,7 @@ const logout = async () => {
 }
 
 .main-content {
-    max-width: 1400px;
+    max-width: 1900px;
     margin: 0 auto;
 }
 

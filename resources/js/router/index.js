@@ -1,10 +1,11 @@
 import {createRouter, createWebHistory} from 'vue-router';
-import axios from '../axios';
 import Home from '@/views/Home.vue'
 import Layout from '@/layouts/Layout.vue';
 import Calendar from '@/views/Calendar.vue';
 import Profile from '@/views/Profile.vue';
 import Manage from '@/views/Manage.vue';
+import {useAuthStore} from '../store/auth';
+import {watch} from "vue";
 
 const routes = [
     {
@@ -43,17 +44,39 @@ const router = createRouter({
 });
 
 // 路由守卫：检查登录状态
-router.beforeEach((to, from, next) => {
-    const token = localStorage.getItem('token');
-    console.log(token);
+router.beforeEach(async (to, from, next) => {
+    const authStore = useAuthStore();
 
-    if (to.meta.requiresAuth && !token ) {
-        next({name: 'Home'});
-    } else if (to.meta.requiresGuest && token) {
-        next({name: 'Dashboard'});
-    } else {
-        next();
+    // 等待 fetchUser 完成（如果正在加载中）
+    if (authStore.loading) {
+        // 可以显示一个全局加载指示器
+        // 这里简单等待几毫秒，或者使用 watch 更优雅
+        await new Promise(resolve => {
+            const unwatch = watch(
+                () => authStore.loading,
+                (val) => {
+                    if (!val) {
+                        unwatch();
+                        resolve();
+                    }
+                }
+            );
+        });
     }
+
+    // 未登录则跳转到首页
+    if (!authStore.isAuthenticated && to.meta.requiresAuth) {
+        next({name: 'Home'});
+        return;
+    }
+
+    // 如果访问的是游客页面（如登录页），但已经登录，则跳转到 dashboard
+    if (to.meta.requiresGuest && authStore.isAuthenticated) {
+        next({name: 'Dashboard'});
+        return;
+    }
+    // 其他情况放行
+    next();
 });
 
 export default router;

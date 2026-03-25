@@ -61,9 +61,11 @@ import Login from '@/components/auth/Login.vue'
 import Register from '@/components/auth/Register.vue'
 import {sanctum, api} from "../axios";
 import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/store/auth';
 
 
 const router = useRouter(); // ✅ 必须调用
+const authStore = useAuthStore();              // 必须调用实例化
 // 选项卡状态
 const activeTab = ref('login')
 
@@ -161,12 +163,11 @@ const handleLogin = async (formData) => {
 
         // 2. 发起登录请求
         const response = await api.post('/login', formData);
-        console.log(response);
-        // 存储 token 等操作
-        // localStorage.setItem('token', result.token);
-
+        //3. 将用户信息存储在 pinia 中进行状态管理
+        authStore.setUser(response.data)
         message.text = '登录成功！正在跳转...'
         message.type = 'success'
+
     } catch {
         message.text = '登录失败，请检查邮箱和密码'
         message.type = 'danger'

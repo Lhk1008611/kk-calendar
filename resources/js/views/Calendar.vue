@@ -20,6 +20,7 @@ import FullCalendar from '@fullcalendar/vue3';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import zhCnLocale from '@fullcalendar/core/locales/zh-cn';
 import {api} from '@/axios';
 import multiMonthPlugin from '@fullcalendar/multimonth';  // 新增
 
@@ -32,6 +33,7 @@ const events = ref([]);
 const calendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
     initialView: 'timeGridWeek', // 默认显示周视图
+    locale: zhCnLocale,              // 设置中文
     headerToolbar: {
         left: 'today',
         center: 'prev,title,next',
@@ -43,6 +45,16 @@ const calendarOptions = {
         week: '周',
         dayGridYear: '年'
     },
+    slotLabelFormat: {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: false,                // 启用12小时制
+        meridiem: false              // 不显示上午/下午，只显示数字如 12:00
+    },
+    slotDuration: '00:15:00',      // 每个时间槽长度 30 分钟
+    slotLabelInterval: '00:30:00', // 标签显示间隔 30 分钟
+    slotMinTime: '08:00:00',       // 时间轴从 8:00 开始
+    slotMaxTime: '24:00:00',       // 时间轴结束时间（可根据需要调整）
     height: 800,
     events: events.value,
     editable: true,       // 可拖动调整

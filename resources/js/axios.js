@@ -7,6 +7,7 @@ export const api = axios.create({
     withCredentials: true,           // 携带 Cookie（Sanctum 必需）
     headers: {
         'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json',
     }
 });
 
@@ -33,8 +34,8 @@ api.interceptors.response.use(
                 toast.error(data?.message || '请求参数错误');
                 break;
             case 401:
-                toast.warning('登录已过期，请重新登录');
-                router.push({ name: 'Home' }); // 跳转到登录页
+                // toast.warning('登录已过期，请重新登录');
+                // router.push({ name: 'Home' }); // 跳转到登录页
                 break;
             case 403:
                 toast.error('没有权限执行此操作');

@@ -86,7 +86,7 @@ const calendarOptions = {
 // 从后端加载事件
 const loadEvents = async () => {
     try {
-        const response = await api.get('/events'); // 假设后端路由
+        const response = await api.get('/check-auth'); // 假设后端路由
         events.value = response.data;
         // 更新日历的事件源
         const calendarApi = fullCalendarRef.value?.getApi();

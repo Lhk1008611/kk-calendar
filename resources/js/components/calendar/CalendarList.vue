@@ -50,7 +50,7 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr v-for="calendar in paginatedCalendars" :key="calendar.id">
+                <tr v-for="calendar in calendars" :key="calendar.id">
                     <td>
                         <input
                             type="checkbox"
@@ -76,14 +76,14 @@
                     <td>{{ visibilityText(calendar.visibility) }}</td>
                     <td>{{ formatDate(calendar.created_at) }}</td>
                 </tr>
-                <tr v-if="filteredCalendars.length === 0">
+                <tr v-if="totalCount === 0">
                     <td colspan="7" class="text-center text-muted">暂无数据</td>
                 </tr>
                 </tbody>
             </table>
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <div class="text-muted small">
-                    共 {{ filteredCalendars.length }} 条
+                    共 {{ totalCount }} 条
                 </div>
                 <nav aria-label="分页导航">
                     <ul class="pagination pagination-sm mb-0">
@@ -179,37 +179,33 @@ const newCalendar = ref({
 });
 let addModal = null;
 // 分页
-const itemsPerPage = 10;
 const currentPage = ref(1);
+const totalPages = ref(1);
+const totalCount = ref(0);
+const perPage = 10;                 // 每页条数（固定或从后端获取）
+
 
 // 获取日历列表
 const fetchCalendars = async () => {
-    try {
-        const response = await api.get('/calendars');
-        calendars.value = response.data;
-    } catch (error) {
-        toast.error('获取日历列表失败');
+        try {
+            let response = await api.get('/calendars', {
+                params: {
+                    keyword: searchKeyword.value,
+                    page: currentPage.value,
+                    per_page: perPage,   // 可选，后端可默认 10
+                }
+            });
+            response = response.data;
+            calendars.value = response.data;
+            currentPage.value = response.current_page;
+            totalPages.value = response.last_page;
+            totalCount.value = response.total;
+        } catch
+            (error) {
+            toast.error('获取日历列表失败');
+        }
     }
-};
-
-// 过滤
-const filteredCalendars = computed(() => {
-    if (!searchKeyword.value) return calendars.value;
-    const kw = searchKeyword.value.toLowerCase();
-    return calendars.value.filter(c => c.name.toLowerCase().includes(kw));
-});
-
-// 分页后的数据
-const paginatedCalendars = computed(() => {
-    const start = (currentPage.value - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-    return filteredCalendars.value.slice(start, end);
-});
-
-// 总页数
-const totalPages = computed(() => {
-    return Math.ceil(filteredCalendars.value.length / itemsPerPage);
-});
+;
 
 // 页码变化时重置选中状态（可选）
 const changePage = (page) => {
@@ -220,31 +216,36 @@ const changePage = (page) => {
 
 // 全选逻辑
 const isAllSelected = computed(() => {
-    return paginatedCalendars.value.length > 0 && selectedIds.value.length === paginatedCalendars.value.length;
+    return calendars.value.length > 0 && selectedIds.value.length === calendars.value.length;
 });
+
 const toggleSelectAll = (e) => {
     if (e.target.checked) {
-        selectedIds.value = paginatedCalendars.value.map(c => c.id);
+        selectedIds.value = calendars.value.map(c => c.id);
     } else {
         selectedIds.value = [];
     }
 };
 
 watch(searchKeyword, () => {
-    currentPage.value = 1;
-    selectedIds.value = [];
+    fetchCalendars();
 });
 
 // 删除选中
 const deleteSelected = async () => {
     if (selectedIds.value.length === 0) return;
+    console.log(selectedIds.value);
     if (!confirm(`确定要删除选中的 ${selectedIds.value.length} 个日历吗？`)) return;
     try {
         // 批量删除接口 (建议后端支持批量)
-        await Promise.all(selectedIds.value.map(id => api.delete(`/calendars/${id}`)));
+        await api.delete(`/calendars`,{
+            params: {
+                ids:selectedIds.value
+            }
+        });
         toast.success('删除成功');
         selectedIds.value = [];
-        fetchCalendars();
+        await fetchCalendars();
     } catch (error) {
         toast.error('删除失败');
     }
@@ -267,10 +268,10 @@ const submitAdd = async () => {
     addLoading.value = true;
     addError.value = '';
     try {
-        await api.post('/calendars', newCalendar.value);
+        await api.post('/calendar', newCalendar.value);
         toast.success('新增成功');
         addModal.hide();
-        fetchCalendars();
+        await fetchCalendars();
     } catch (error) {
         if (error.response?.status === 422) {
             const errors = error.response.data.errors;

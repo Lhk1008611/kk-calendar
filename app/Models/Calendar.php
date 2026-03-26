@@ -13,6 +13,11 @@ class Calendar extends Model
 
     protected $fillable = ['user_id', 'name', 'description', 'color', 'is_default', 'visibility'];
 
+    protected $casts = [
+        'is_default' => 'boolean',
+        'visibility' => 'integer',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

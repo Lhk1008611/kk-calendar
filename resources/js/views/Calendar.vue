@@ -1,7 +1,7 @@
 <template>
     <div class="calendar-container">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0">我的行事历</h4>
+            <h4 class="mb-0">{{ calendar.name }}</h4>
             <button class="btn btn-primary btn-sm" @click="openAddEventModal">
                 <i class="bi bi-plus-lg me-1"></i> 添加事件
             </button>
@@ -25,6 +25,8 @@ import {api} from '@/axios';
 import multiMonthPlugin from '@fullcalendar/multimonth';  // 新增
 
 const fullCalendarRef = ref(null);
+
+const calendar = ref([]);
 
 // 事件数据（从后端获取）
 const events = ref([]);
@@ -83,16 +85,37 @@ const calendarOptions = {
     }
 };
 
+calendarOptions.events = async function(info, successCallback, failureCallback) {
+    try {
+        // fetchInfo 包含 start 和 end 对象（moment 或 Date）
+        const startStr = info.start.toISOString();
+        const endStr = info.end.toISOString();
+
+        let response = await api.get('/calendar_event', {
+            params: { start: startStr, end: endStr }
+        });
+        response = response.data;
+        events.value = response.events;
+        calendar.value = response.calendar;
+        console.log(calendar.value);
+        successCallback(events);
+    }catch (error) {
+        failureCallback(error);
+    }
+
+};
+
 // 从后端加载事件
 const loadEvents = async () => {
     try {
+
         const response = await api.get('/check-auth'); // 假设后端路由
-        events.value = response.data;
+        // events.value = response.data;
         // 更新日历的事件源
-        const calendarApi = fullCalendarRef.value?.getApi();
-        if (calendarApi) {
-            calendarApi.refetchEvents();
-        }
+        // const calendarApi = fullCalendarRef.value?.getApi();
+        // if (calendarApi) {
+        //     calendarApi.refetchEvents();
+        // }
     } catch (error) {
         console.error('加载事件失败', error);
     }

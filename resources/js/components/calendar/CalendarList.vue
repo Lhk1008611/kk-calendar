@@ -224,8 +224,7 @@ const fetchCalendars = async () => {
             currentPage.value = response.current_page;
             totalPages.value = response.last_page;
             totalCount.value = response.total;
-        } catch
-            (error) {
+        } catch (error) {
             toast.error('获取日历列表失败');
         }
     }

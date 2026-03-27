@@ -153,6 +153,28 @@
                 </div>
             </div>
         </div>
+
+        <!-- 删除确认模态框 -->
+        <div class="modal fade" id="deleteConfirmModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger">确认删除</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>确定要删除选中的日历吗？此操作不可恢复！</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-danger" @click="confirmDelete" :disabled="deleteLoading">
+                            <span v-if="deleteLoading" class="spinner-border spinner-border-sm me-1"></span>
+                            确认删除
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -178,6 +200,8 @@ const newCalendar = ref({
     visibility: 1,
 });
 let addModal = null;
+const deleteModal = ref(null);
+const deleteLoading = ref(false);
 // 分页
 const currentPage = ref(1);
 const totalPages = ref(1);
@@ -231,24 +255,38 @@ watch(searchKeyword, () => {
     fetchCalendars();
 });
 
+// 打开删除确认模态框
+const openDeleteModal = () => {
+    deleteModal.value = new Modal(document.getElementById('deleteConfirmModal'));
+    deleteModal.value.show();
+};
+
 // 删除选中
-const deleteSelected = async () => {
-    if (selectedIds.value.length === 0) return;
-    console.log(selectedIds.value);
-    if (!confirm(`确定要删除选中的 ${selectedIds.value.length} 个日历吗？`)) return;
+const confirmDelete = async () => {
+    deleteLoading.value = true;
     try {
         // 批量删除接口 (建议后端支持批量)
-        await api.delete(`/calendars`,{
+        await api.delete(`/calendars`, {
             params: {
-                ids:selectedIds.value
+                ids: selectedIds.value
             }
         });
         toast.success('删除成功');
         selectedIds.value = [];
         await fetchCalendars();
+        deleteModal.value.hide();
     } catch (error) {
         toast.error('删除失败');
+        removeBackdrops();
+    } finally {
+        deleteLoading.value = false;
     }
+};
+
+// 修改原有的删除选中方法
+const deleteSelected = () => {
+    if (selectedIds.value.length === 0) return;
+    openDeleteModal(selectedIds.value);
 };
 
 // 打开新增模态框
@@ -278,11 +316,19 @@ const submitAdd = async () => {
             addError.value = Object.values(errors).flat().join(' ');
         } else {
             addError.value = error.response?.data?.message || '新增失败';
+            removeBackdrops();
         }
     } finally {
         addLoading.value = false;
     }
 };
+
+// 强制移除 Bootstrap 遮罩层
+const removeBackdrops = (() => {
+    document.body.classList.remove('modal-open');
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+});
 
 // 辅助函数
 const visibilityText = (v) => {

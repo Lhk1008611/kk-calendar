@@ -34,7 +34,6 @@ class CalendarEventController extends Controller
         $end = $request->input('end');
 
         $query = CalendarEvent::where('calendar_id', $defaultCalendar->id);
-
         if ($start && $end) {
             // FullCalendar 传递的是 ISO 日期字符串，需要转换为日期范围
             // 注意：FullCalendar 传递的 start 和 end 是查询范围的开始和结束（通常是该视图的开始和结束日期）
@@ -50,7 +49,6 @@ class CalendarEventController extends Controller
         }
 
         $events = $query->orderBy('start_time', 'asc')->get();
-
         return response()->json([
             'calendar' => $defaultCalendar,
             'events' => $events,

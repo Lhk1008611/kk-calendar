@@ -23,13 +23,11 @@ import interactionPlugin from '@fullcalendar/interaction';
 import zhCnLocale from '@fullcalendar/core/locales/zh-cn';
 import {api} from '@/axios';
 import multiMonthPlugin from '@fullcalendar/multimonth';  // 新增
+import moment from 'moment';
 
 const fullCalendarRef = ref(null);
-
 const calendar = ref([]);
 
-// 事件数据（从后端获取）
-const events = ref([]);
 
 // 日历配置
 const calendarOptions = {
@@ -58,7 +56,9 @@ const calendarOptions = {
     slotMinTime: '08:00:00',       // 时间轴从 8:00 开始
     slotMaxTime: '24:00:00',       // 时间轴结束时间（可根据需要调整）
     height: 800,
-    events: events.value,
+    events: async function (info, successCallback, failureCallback) {
+        await getDefaultEvents(info, successCallback, failureCallback)
+    },
     editable: true,       // 可拖动调整
     selectable: true,     // 可选中日期
     selectMirror: true,
@@ -85,21 +85,36 @@ const calendarOptions = {
     }
 };
 
-calendarOptions.events = async function(info, successCallback, failureCallback) {
+const getDefaultEvents = async function (info, successCallback, failureCallback) {
     try {
-        // fetchInfo 包含 start 和 end 对象（moment 或 Date）
-        const startStr = info.start.toISOString();
-        const endStr = info.end.toISOString();
+        // info 包含 start 和 end 对象（moment 或 Date）
+        // const startStr = info.start.toISOString();
+        // const endStr = info.end.toISOString();
+        const startLocal = moment(info.start).format('YYYY-MM-DD HH:mm:ss');
+        const endLocal = moment(info.end).format('YYYY-MM-DD HH:mm:ss');
 
         let response = await api.get('/calendar_event', {
-            params: { start: startStr, end: endStr }
+            params: {
+                start: startLocal,
+                end: endLocal
+            }
         });
         response = response.data;
-        events.value = response.events;
         calendar.value = response.calendar;
-        console.log(calendar.value);
+        let events = [];
+        // 后端返回的 events 是数组，FullCalendar 需要格式为 [{ id, title, start, end, ... }]
+        if (response.events){
+            events = response.events.map(event => ({
+                id: event.id,
+                title: event.title,
+                start: event.start_time,
+                end: event.end_time,
+                allDay: event.all_day,
+                color: event.color,
+            }));
+        }
         successCallback(events);
-    }catch (error) {
+    } catch (error) {
         failureCallback(error);
     }
 
@@ -164,7 +179,7 @@ onMounted(() => {
 
 :deep(.fc .fc-toolbar-title) {
     font-size: 1.2rem;
-    white-space: nowrap;      /* 防止标题换行 */
+    white-space: nowrap; /* 防止标题换行 */
     display: inline-block;
     margin: 0 0.5rem;
 }

@@ -147,7 +147,9 @@
                         </form>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="removeBackdrops()">取消</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                                @click="removeBackdrops()">取消
+                        </button>
                         <button type="button" class="btn btn-primary" @click="updateEvent" :disabled="editLoading">
                             <span v-if="editLoading" class="spinner-border spinner-border-sm me-1"></span>
                             保存修改
@@ -161,7 +163,7 @@
 </template>
 
 <script setup>
-import {ref, onMounted} from 'vue';
+import {ref} from 'vue';
 import FullCalendar from '@fullcalendar/vue3';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -203,34 +205,26 @@ const calendarOptions = {
     slotMinTime: '08:00:00',       // 时间轴从 8:00 开始
     slotMaxTime: '24:00:00',       // 时间轴结束时间（可根据需要调整）
     height: 800,
-    events: async function (info, successCallback, failureCallback) {
-        await getDefaultEvents(info, successCallback, failureCallback)
-    },
+    allDaySlot: true,               // 显示全天事件
     editable: true,       // 可拖动调整
     selectable: true,     // 可选中日期
     selectMirror: true,
     dayMaxEvents: true,   // 限制每日显示事件数量
-    select: (info) => {
-        // 用户选择时间段（鼠标框选）时弹出新增窗口
-        openAddEventModal(info.start, info.end);
+    events: async function (info, successCallback, failureCallback) {
+        await getDefaultEvents(info, successCallback, failureCallback)
     },
-    // 点击日期弹出添加事件窗口
-    dateClick: (info) => {
-        // 点击日期时弹出新增窗口，默认事件持续1小时
-        const start = info.date;
-        const end = new Date(start);
-        end.setMinutes(start.getMinutes() + 15);
-        openAddEventModal(start, end);
+    // 用户选择时间段（鼠标框选）时弹出新增窗口
+    select: (info) => {
+        openAddEventModal(info);
     },
     // 事件被拖动后更新
     eventDrop: async (info) => {
         // 调用后端更新事件日期
-        const event = info.event;
-        await updateEventDate(event.id, event.startStr, event.endStr);
+        await updateEventDate(info);
     },
     // 事件被调整大小时
     eventResize: async (info) => {
-        await updateEventDate(info.event.id, info.event.startStr, info.event.endStr);
+        await updateEventDate(info);
     },
     // 事件点击（可弹出详情）
     eventClick: (info) => {
@@ -275,7 +269,15 @@ const editModal = ref(null);
 const openEditModal = (event) => {
     // 从 FullCalendar 事件对象中提取数据
     const startTime = formatLocal(event.start);
-    const endTime = formatLocal(event.end);
+    let endTime = '';
+    if (event.allDay && !event.end) {
+        endTime = new Date(event.start)
+        endTime.setDate(endTime.getDate() + 1);
+        endTime = formatLocal(endTime);
+    }
+    if (event.end) {
+        endTime = formatLocal(event.end);
+    }
     editForm.value = {
         id: event.id,
         title: event.title,
@@ -291,7 +293,37 @@ const openEditModal = (event) => {
     editModal.value = new Modal(document.getElementById('editEventModal'));
     editModal.value.show();
 };
+// 更新事件日期
+const updateEventDate = async (info) => {
+    try {
+        const event = info.event;
+        const data = {
+            all_day: event.allDay,
+        };
+        console.log(event);
+        let endTime = new Date(event.start)
 
+        if (event.allDay) {
+            endTime.setDate(endTime.getDate() + 1);
+            data.start_time = formatLocal(event.start);
+            data.end_time = formatLocal(endTime);
+        } else {
+            data.start_time = event.start.toISOString();
+            if (event.end){
+                data.end_time = event.end.toISOString();
+            }else {
+                endTime.setHours(endTime.getUTCHours() + 1);
+                data.end_time = formatLocal(endTime);
+            }
+        }
+        await api.patch(`/calendar_event/${event.id}`, data);
+        // 成功后可提示
+    } catch (error) {
+        console.error('更新失败', error);
+        // 如果失败，可重新加载以恢复原状态
+
+    }
+};
 // 提交更新
 const updateEvent = async () => {
     if (!editForm.value.title) {
@@ -336,39 +368,28 @@ const updateEvent = async () => {
 
 
 // 打开新增模态框
-const openAddEventModal = (startDate = null, endDate = null) => {
+const openAddEventModal = (info) => {
+    const startDate = formatLocal(info.start);
+    const endDate = formatLocal(info.end);
     // 重置表单
     eventForm.value = {
         title: '',
         description: '',
-        start_time: '',
-        end_time: '',
-        all_day: false,
+        start_time: startDate,
+        end_time: endDate,
+        all_day: info.allDay,
         repeat_type: '',
         repeat_until: '',
         color: '#3788d8',
     };
     eventError.value = '';
-    if (startDate && endDate) {
-        presetDates(startDate, endDate);
-    } else {
-        // 如果没有传入，使用当前时间前后1小时
-        const now = new Date();
-        const start = new Date(now);
-        const end = new Date(now);
-        end.setHours(now.getHours() + 1);
-        presetDates(start, end);
-    }
+
     // 创建新实例
     addModal.value = new Modal(document.getElementById('addEventModal'));
     addModal.value.show();
 };
 
 // 预填充时间（由点击事件设置），后端存储 utc 时间，前端将后端的 utc 时间显示为本地时间即可
-const presetDates = (start, end) => {
-    eventForm.value.start_time = formatLocal(start);
-    eventForm.value.end_time = formatLocal(end);
-};
 const formatLocal = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -411,6 +432,7 @@ const submitEvent = async () => {
         await api.post('/calendar_event', data);
         toast.success('事件添加成功');
         addModal.value.hide();
+        removeBackdrops();
         // 刷新日历事件
         if (fullCalendarRef.value) {
             fullCalendarRef.value.getApi().refetchEvents();
@@ -446,7 +468,7 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
                 end: event.end_time.toLocaleString(),
                 allDay: event.all_day,
                 color: event.color,
-                extendedProps : {
+                extendedProps: {
                     description: event.description,
                 },
             }));
@@ -457,25 +479,6 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
     }
 
 };
-
-// 更新事件日期
-const updateEventDate = async (eventId, start, end) => {
-    try {
-        await api.put(`/events/${eventId}`, {start, end});
-        // 成功后可提示
-    } catch (error) {
-        console.error('更新失败', error);
-        // 如果失败，可重新加载以恢复原状态
-
-    }
-};
-
-onMounted(() => {
-    // 确保模态框实例清理
-    window.addEventListener('beforeunload', () => {
-        if (addModal) addModal.dispose();
-    });
-});
 
 // 强制移除 Bootstrap 遮罩层
 const removeBackdrops = (() => {

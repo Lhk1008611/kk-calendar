@@ -73,7 +73,9 @@
                         </form>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                                @click="removeBackdrops">取消
+                        </button>
                         <button type="button" class="btn btn-primary" @click="submitEvent" :disabled="eventLoading">
                             <span v-if="eventLoading" class="spinner-border spinner-border-sm me-1"></span>
                             保存
@@ -82,6 +84,79 @@
                 </div>
             </div>
         </div>
+
+        <!-- 编辑事件模态框 -->
+        <div class="modal fade" id="editEventModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">修改事件</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form @submit.prevent="updateEvent">
+                            <!-- 表单字段与新增一致，但绑定到 editForm -->
+                            <div class="mb-3">
+                                <label class="form-label">标题 *</label>
+                                <input type="text" class="form-control" v-model="editForm.title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">描述</label>
+                                <textarea class="form-control" rows="2" v-model="editForm.description"></textarea>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">开始时间</label>
+                                    <input type="datetime-local" class="form-control" v-model="editForm.start_time">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">结束时间</label>
+                                    <input type="datetime-local" class="form-control" v-model="editForm.end_time">
+                                </div>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="editAllDay"
+                                       v-model="editForm.all_day">
+                                <label class="form-check-label" for="editAllDay">全天事件</label>
+                            </div>
+                            <!-- 重复事件、颜色选择器等，与新增一致 -->
+                            <div class="mb-3">
+                                <label class="form-label">重复规则</label>
+                                <select class="form-select" v-model="editForm.repeat_type">
+                                    <option value="">不重复</option>
+                                    <option value="daily">每天</option>
+                                    <option value="weekly">每周</option>
+                                    <option value="monthly">每月</option>
+                                    <option value="yearly">每年</option>
+                                </select>
+                            </div>
+                            <div v-if="editForm.repeat_type" class="mb-3">
+                                <label class="form-label">重复结束日期（可选）</label>
+                                <input type="date" class="form-control" v-model="editForm.repeat_until">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">事件颜色</label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" class="form-control form-control-color" v-model="editForm.color"
+                                           style="width: 60px;">
+                                    <span class="badge"
+                                          :style="{ backgroundColor: editForm.color, width: '40px', height: '30px' }"></span>
+                                </div>
+                            </div>
+                            <div class="alert alert-danger" v-if="editError">{{ editError }}</div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="removeBackdrops()">取消</button>
+                        <button type="button" class="btn btn-primary" @click="updateEvent" :disabled="editLoading">
+                            <span v-if="editLoading" class="spinner-border spinner-border-sm me-1"></span>
+                            保存修改
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </template>
 
@@ -96,145 +171,16 @@ import {api} from '@/axios';
 import moment from 'moment';
 import {useToast} from 'vue-toastification';
 import {Modal} from 'bootstrap';
-import {useAuthStore} from '@/store/auth';
 
 const fullCalendarRef = ref(null);
 const calendar = ref([]);
-
 const toast = useToast();
-const authStore = useAuthStore();
-
-let addModal = null;
-const eventLoading = ref(false);
-const eventError = ref('');
-
-// 表单数据
-const eventForm = ref({
-    title: '',
-    description: '',
-    start_time: '',
-    end_time: '',
-    all_day: false,
-    repeat_type: '',
-    repeat_until: '',
-    color: '#3788d8', // 默认蓝色
-});
-
-// 预填充时间（由点击事件设置），后端存储 utc 时间，前端将后端的 utc 时间显示为本地时间即可
-const presetDates = (start, end) => {
-    const formatLocal = (date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hours}:${minutes}`;
-    };
-    eventForm.value.start_time = formatLocal(start);
-    eventForm.value.end_time = formatLocal(end);
-};
-
-// 打开新增模态框
-const openAddEventModal = (startDate = null, endDate = null) => {
-    // 先销毁旧实例（如果存在）
-    if (addModal) {
-        addModal.dispose();
-        addModal = null;
-    }
-
-    // 重置表单
-    eventForm.value = {
-        title: '',
-        description: '',
-        start_time: '',
-        end_time: '',
-        all_day: false,
-        repeat_type: '',
-        repeat_until: '',
-        color: '#3788d8',
-    };
-    eventError.value = '';
-    if (startDate && endDate) {
-        presetDates(startDate, endDate);
-    } else {
-        // 如果没有传入，使用当前时间前后1小时
-        const now = new Date();
-        const start = new Date(now);
-        const end = new Date(now);
-        end.setHours(now.getHours() + 1);
-        presetDates(start, end);
-    }
-    // 创建新实例
-    const modalElement = document.getElementById('addEventModal');
-    addModal = new Modal(modalElement);
-
-    // 监听隐藏事件，确保清理
-    modalElement.addEventListener('hidden.bs.modal', () => {
-        if (addModal) {
-            addModal.dispose();
-            addModal = null;
-        }
-        // 手动清理可能残留的 backdrop
-        const backdrops = document.querySelectorAll('.modal-backdrop');
-        backdrops.forEach(backdrop => backdrop.remove());
-        document.body.classList.remove('modal-open');
-    }, {once: true});
-
-    addModal.show();
-};
-
-// 提交新增事件
-const submitEvent = async () => {
-    if (!eventForm.value.title) {
-        eventError.value = '请填写标题';
-        return;
-    }
-
-    eventLoading.value = true;
-    eventError.value = '';
-
-    // 构建请求数据
-    const data = {
-        calendar_id: calendar.value.id, // 将由后端根据当前用户默认日历自动填充或前端传入，这里简单使用默认日历
-        title: eventForm.value.title,
-        description: eventForm.value.description,
-        start_time: new Date(eventForm.value.start_time).toISOString(),
-        end_time: new Date(eventForm.value.end_time).toISOString(),
-        all_day: eventForm.value.all_day,
-        color: eventForm.value.color,
-    };
-
-    // 处理重复规则
-    if (eventForm.value.repeat_type) {
-        let rrule = {freq: eventForm.value.repeat_type.toUpperCase()};
-        if (eventForm.value.repeat_until) {
-            rrule.until = eventForm.value.repeat_until;
-        }
-        data.rrule = JSON.stringify(rrule);
-    }
-
-    try {
-        await api.post('/calendar_event', data);
-        toast.success('事件添加成功');
-        addModal.hide();
-        // 刷新日历事件
-        if (fullCalendarRef.value) {
-            fullCalendarRef.value.getApi().refetchEvents();
-        }
-    } catch (error) {
-        console.error(error);
-        eventError.value = error.response?.data?.message || '添加失败，请重试';
-    } finally {
-        eventLoading.value = false;
-    }
-};
 
 // 日历配置
 const calendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
     initialView: 'timeGridWeek', // 默认显示周视图
     locale: zhCnLocale,              // 设置中文
-    // timeZone: 'UTC',
     headerToolbar: {
         left: 'today',
         center: 'prev,title,next',
@@ -273,7 +219,7 @@ const calendarOptions = {
         // 点击日期时弹出新增窗口，默认事件持续1小时
         const start = info.date;
         const end = new Date(start);
-        end.setHours(start.getHours() + 0.25);
+        end.setMinutes(start.getMinutes() + 15);
         openAddEventModal(start, end);
     },
     // 事件被拖动后更新
@@ -289,7 +235,191 @@ const calendarOptions = {
     // 事件点击（可弹出详情）
     eventClick: (info) => {
         // 显示事件详情弹窗
-        alert(`事件：${info.event.title}\n时间：${info.event.startStr}`);
+        openEditModal(info.event);
+    }
+};
+
+const addModal = ref(null);
+const eventLoading = ref(false);
+const eventError = ref('');
+
+// 表单数据
+const eventForm = ref({
+    title: '',
+    description: '',
+    start_time: '',
+    end_time: '',
+    all_day: false,
+    repeat_type: '',
+    repeat_until: '',
+    color: '#3788d8', // 默认蓝色
+});
+
+// 编辑相关状态
+const editForm = ref({
+    id: null,
+    title: '',
+    description: '',
+    start_time: '',
+    end_time: '',
+    all_day: false,
+    repeat_type: '',
+    repeat_until: '',
+    color: '#3788d8',
+});
+const editLoading = ref(false);
+const editError = ref('');
+const editModal = ref(null);
+
+// 打开编辑模态框
+const openEditModal = (event) => {
+    // 从 FullCalendar 事件对象中提取数据
+    const startTime = formatLocal(event.start);
+    const endTime = formatLocal(event.end);
+    editForm.value = {
+        id: event.id,
+        title: event.title,
+        description: event.extendedProps.description || '',
+        start_time: startTime,
+        end_time: endTime,
+        all_day: event.allDay || false,
+        repeat_type: event.extendedProps.rrule ? JSON.parse(event.extendedProps.rrule).freq?.toLowerCase() || '' : '',
+        repeat_until: event.extendedProps.rrule ? JSON.parse(event.extendedProps.rrule).until || '' : '',
+        color: event.backgroundColor || '#3788d8',
+    };
+    editError.value = '';
+    editModal.value = new Modal(document.getElementById('editEventModal'));
+    editModal.value.show();
+};
+
+// 提交更新
+const updateEvent = async () => {
+    if (!editForm.value.title) {
+        editError.value = '请填写标题';
+        return;
+    }
+    editLoading.value = true;
+    editError.value = '';
+
+    const data = {
+        title: editForm.value.title,
+        description: editForm.value.description,
+        all_day: editForm.value.all_day,
+        color: editForm.value.color,
+    };
+    if (editForm.value.start_time) {
+        data.start_time = new Date(editForm.value.start_time).toISOString();
+    }
+    if (editForm.value.end_time) {
+        data.end_time = new Date(editForm.value.end_time).toISOString();
+    }
+    if (editForm.value.repeat_type) {
+        let rrule = {freq: editForm.value.repeat_type.toUpperCase()};
+        if (editForm.value.repeat_until) rrule.until = editForm.value.repeat_until;
+        data.rrule = JSON.stringify(rrule);
+    }
+
+    try {
+        await api.patch(`/calendar_event/${editForm.value.id}`, data);
+        toast.success('事件更新成功');
+        editModal.value.hide();
+        // 刷新日历
+        if (fullCalendarRef.value) {
+            fullCalendarRef.value.getApi().refetchEvents();
+        }
+    } catch (error) {
+        editError.value = error.response?.data?.message || '更新失败，请重试';
+    } finally {
+        editLoading.value = false;
+    }
+};
+
+
+// 打开新增模态框
+const openAddEventModal = (startDate = null, endDate = null) => {
+    // 重置表单
+    eventForm.value = {
+        title: '',
+        description: '',
+        start_time: '',
+        end_time: '',
+        all_day: false,
+        repeat_type: '',
+        repeat_until: '',
+        color: '#3788d8',
+    };
+    eventError.value = '';
+    if (startDate && endDate) {
+        presetDates(startDate, endDate);
+    } else {
+        // 如果没有传入，使用当前时间前后1小时
+        const now = new Date();
+        const start = new Date(now);
+        const end = new Date(now);
+        end.setHours(now.getHours() + 1);
+        presetDates(start, end);
+    }
+    // 创建新实例
+    addModal.value = new Modal(document.getElementById('addEventModal'));
+    addModal.value.show();
+};
+
+// 预填充时间（由点击事件设置），后端存储 utc 时间，前端将后端的 utc 时间显示为本地时间即可
+const presetDates = (start, end) => {
+    eventForm.value.start_time = formatLocal(start);
+    eventForm.value.end_time = formatLocal(end);
+};
+const formatLocal = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+// 提交新增事件
+const submitEvent = async () => {
+    if (!eventForm.value.title) {
+        eventError.value = '请填写标题';
+        return;
+    }
+
+    eventLoading.value = true;
+    eventError.value = '';
+
+    // 构建请求数据
+    const data = {
+        calendar_id: calendar.value.id, // 将由后端根据当前用户默认日历自动填充或前端传入，这里简单使用默认日历
+        title: eventForm.value.title,
+        description: eventForm.value.description,
+        start_time: new Date(eventForm.value.start_time).toISOString(),
+        end_time: new Date(eventForm.value.end_time).toISOString(),
+        all_day: eventForm.value.all_day,
+        color: eventForm.value.color,
+    };
+
+    // 处理重复规则
+    if (eventForm.value.repeat_type) {
+        let rrule = {freq: eventForm.value.repeat_type.toUpperCase()};
+        if (eventForm.value.repeat_until) {
+            rrule.until = eventForm.value.repeat_until;
+        }
+        data.rrule = JSON.stringify(rrule);
+    }
+
+    try {
+        await api.post('/calendar_event', data);
+        toast.success('事件添加成功');
+        addModal.value.hide();
+        // 刷新日历事件
+        if (fullCalendarRef.value) {
+            fullCalendarRef.value.getApi().refetchEvents();
+        }
+    } catch (error) {
+        console.error(error);
+        eventError.value = error.response?.data?.message || '添加失败，请重试';
+    } finally {
+        eventLoading.value = false;
     }
 };
 
@@ -316,6 +446,9 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
                 end: event.end_time.toLocaleString(),
                 allDay: event.all_day,
                 color: event.color,
+                extendedProps : {
+                    description: event.description,
+                },
             }));
         }
         successCallback(events);
@@ -333,7 +466,7 @@ const updateEventDate = async (eventId, start, end) => {
     } catch (error) {
         console.error('更新失败', error);
         // 如果失败，可重新加载以恢复原状态
-        loadEvents();
+
     }
 };
 

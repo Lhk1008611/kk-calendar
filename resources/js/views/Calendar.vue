@@ -94,9 +94,9 @@ import interactionPlugin from '@fullcalendar/interaction';
 import zhCnLocale from '@fullcalendar/core/locales/zh-cn';
 import {api} from '@/axios';
 import moment from 'moment';
-import { useToast } from 'vue-toastification';
-import { Modal } from 'bootstrap';
-import { useAuthStore } from '@/store/auth';
+import {useToast} from 'vue-toastification';
+import {Modal} from 'bootstrap';
+import {useAuthStore} from '@/store/auth';
 
 const fullCalendarRef = ref(null);
 const calendar = ref([]);
@@ -120,12 +120,18 @@ const eventForm = ref({
     color: '#3788d8', // 默认蓝色
 });
 
-// 预填充时间（由点击事件设置）
+// 预填充时间（由点击事件设置），后端存储 utc 时间，前端将后端的 utc 时间显示为本地时间即可
 const presetDates = (start, end) => {
-    const s = end.toISOString().substring(0,19);
-    // 假设 start 是一个 Date 对象
-    eventForm.value.start_time = start.toISOString().substring(0,19)
-    eventForm.value.end_time = end.toISOString().substring(0,19);
+    const formatLocal = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+    eventForm.value.start_time = formatLocal(start);
+    eventForm.value.end_time = formatLocal(end);
 };
 
 // 打开新增模态框
@@ -172,7 +178,7 @@ const openAddEventModal = (startDate = null, endDate = null) => {
         const backdrops = document.querySelectorAll('.modal-backdrop');
         backdrops.forEach(backdrop => backdrop.remove());
         document.body.classList.remove('modal-open');
-    }, { once: true });
+    }, {once: true});
 
     addModal.show();
 };
@@ -192,15 +198,15 @@ const submitEvent = async () => {
         calendar_id: calendar.value.id, // 将由后端根据当前用户默认日历自动填充或前端传入，这里简单使用默认日历
         title: eventForm.value.title,
         description: eventForm.value.description,
-        start_time: moment(eventForm.value.start_time).format('YYYY-MM-DD HH:mm:ss'),
-        end_time: moment(eventForm.value.end_time).format('YYYY-MM-DD HH:mm:ss'),
+        start_time: new Date(eventForm.value.start_time).toISOString(),
+        end_time: new Date(eventForm.value.end_time).toISOString(),
         all_day: eventForm.value.all_day,
         color: eventForm.value.color,
     };
 
     // 处理重复规则
     if (eventForm.value.repeat_type) {
-        let rrule = { freq: eventForm.value.repeat_type.toUpperCase() };
+        let rrule = {freq: eventForm.value.repeat_type.toUpperCase()};
         if (eventForm.value.repeat_until) {
             rrule.until = eventForm.value.repeat_until;
         }
@@ -228,7 +234,7 @@ const calendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
     initialView: 'timeGridWeek', // 默认显示周视图
     locale: zhCnLocale,              // 设置中文
-    timeZone: 'UTC',
+    // timeZone: 'UTC',
     headerToolbar: {
         left: 'today',
         center: 'prev,title,next',
@@ -292,7 +298,6 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
         // info 包含 start 和 end 对象（moment 或 Date）
         const startLocal = moment(info.start).format('YYYY-MM-DD HH:mm:ss');
         const endLocal = moment(info.end).format('YYYY-MM-DD HH:mm:ss');
-
         let response = await api.get('/calendar_event', {
             params: {
                 start: startLocal,
@@ -301,16 +306,14 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
         });
         response = response.data;
         calendar.value = response.calendar;
-        const createTime = calendar.value.created_at;
-        console.log(moment(createTime).format('YYYY-MM-DD HH:mm:ss'));
         let events = [];
         // 后端返回的 events 是数组，FullCalendar 需要格式为 [{ id, title, start, end, ... }]
         if (response.events) {
             events = response.events.map(event => ({
                 id: event.id,
                 title: event.title,
-                start: event.start_time,
-                end: event.end_time,
+                start: event.start_time.toLocaleString(),
+                end: event.end_time.toLocaleString(),
                 allDay: event.all_day,
                 color: event.color,
             }));
@@ -320,15 +323,6 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
         failureCallback(error);
     }
 
-};
-
-// 从后端加载事件
-const loadEvents = async () => {
-    try {
-        const response = await api.get('/check-auth'); // 假设后端路由
-    } catch (error) {
-        console.error('加载事件失败', error);
-    }
 };
 
 // 更新事件日期

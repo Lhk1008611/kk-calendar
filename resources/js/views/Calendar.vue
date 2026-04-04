@@ -281,6 +281,7 @@ const openEditModal = (event) => {
     if (event.end) {
         endTime = formatLocal(event.end);
     }
+    const rrule = allEvents.find(value => String(value.id) === String(event.id)).rrule
     editForm.value = {
         id: event.id,
         title: event.title,
@@ -288,8 +289,8 @@ const openEditModal = (event) => {
         start_time: startTime,
         end_time: endTime,
         all_day: event.allDay || false,
-        repeat_type: event.extendedProps.rrule ? JSON.parse(event.extendedProps.rrule).freq?.toLowerCase() || '' : '',
-        repeat_until: event.extendedProps.rrule ? JSON.parse(event.extendedProps.rrule).until || '' : '',
+        repeat_type: rrule ? rrule.freq : '',
+        repeat_until: rrule ? rrule.until : '',
         color: event.backgroundColor || '#3788d8',
     };
     editError.value = '';
@@ -341,18 +342,28 @@ const updateEvent = async () => {
         description: editForm.value.description,
         all_day: editForm.value.all_day,
         color: editForm.value.color,
+        start_time: new Date(editForm.value.start_time).toISOString(),
+        end_time: new Date(editForm.value.end_time).toISOString(),
     };
-    if (editForm.value.start_time) {
-        data.start_time = new Date(editForm.value.start_time).toISOString();
+
+    let rrule = allEvents.find(value => String(value.id) === String(editForm.value.id)).rrule;
+
+    if (!rrule) {
+        rrule = {
+            freq: '',
+            dtstart: '',
+            until: ''
+        }
     }
-    if (editForm.value.end_time) {
-        data.end_time = new Date(editForm.value.end_time).toISOString();
-    }
+
     if (editForm.value.repeat_type) {
-        let rrule = {freq: editForm.value.repeat_type.toUpperCase()};
-        if (editForm.value.repeat_until) rrule.until = editForm.value.repeat_until;
-        data.rrule = JSON.stringify(rrule);
+        rrule.freq = editForm.value.repeat_type
+        rrule.dtstart = new Date(editForm.value.start_time).toISOString();
+        if (editForm.value.repeat_until)
+            rrule.until = editForm.value.repeat_until;
+        data.rrule = rrule;
     }
+    console.log(data);
 
     try {
         await api.patch(`/calendar_event/${editForm.value.id}`, data);
@@ -409,13 +420,10 @@ const submitEvent = async () => {
         eventError.value = '请填写标题';
         return;
     }
-
     eventLoading.value = true;
     eventError.value = '';
-
     const startTime = new Date(eventForm.value.start_time);
     const endTime = new Date(eventForm.value.end_time);
-
     // 构建请求数据
     const data = {
         calendar_id: calendar.value.id, // 将由后端根据当前用户默认日历自动填充或前端传入，这里简单使用默认日历
@@ -437,8 +445,6 @@ const submitEvent = async () => {
             rrule.until = eventForm.value.repeat_until;
         }
         data.rrule = rrule;
-        console.log(rrule);
-        console.log(data.rrule);
     }
 
     try {
@@ -458,6 +464,9 @@ const submitEvent = async () => {
     }
 };
 
+let allEvents = [];
+
+
 const getDefaultEvents = async function (info, successCallback, failureCallback) {
     try {
         // info 包含 start 和 end 对象（moment 或 Date）
@@ -470,11 +479,12 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
             }
         });
         response = response.data;
+        allEvents = response.events;
         calendar.value = response.calendar;
         let events = [];
         // 后端返回的 events 是数组，FullCalendar 需要格式为 [{ id, title, start, end, ... }]
         if (response.events) {
-            response.events.forEach((event) => {
+            events = response.events.map(event => {
                 const data = {
                     id: event.id,
                     title: event.title,
@@ -491,13 +501,12 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
                         until: event.rrule.until,
                     }
                     if (!event.allDay) {
-                        data.duration = event.rrule.duration
+                        data.duration = event.rrule.duration;
                     }
-                } else {
-                    data.start = event.start_time.toLocaleString();
-                    data.end = event.end_time.toLocaleString();
                 }
-                events.push(data);
+                data.start = event.start_time;
+                data.end = event.end_time;
+                return data;
             })
         }
         successCallback(events);

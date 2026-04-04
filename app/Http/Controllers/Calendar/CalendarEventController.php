@@ -105,12 +105,10 @@ class CalendarEventController extends Controller
             'permission' => 'nullable|integer|in:1,2,3',
         ]);
 
-        if ($data['rrule']){
+        if ($data['rrule'] && !$data['all_day']) {
             $data['rrule']['duration'] = $this->formatDuration($data['end_time'],$data['start_time']);
         }
-
         $event = CalendarEvent::create($data);
-
         return response()->json($event, 201);
     }
 
@@ -124,7 +122,7 @@ class CalendarEventController extends Controller
         // 查找事件，并确保属于当前用户
         $event = CalendarEvent::whereHas('calendar', function ($q) use ($user) {
             $q->where('user_id', $user->id);
-        })->findOrFail($id);
+        })->findOrFail($id,['id','rrule']);
 
         $data = $request->validate([
             'calendar_id' => [
@@ -145,6 +143,12 @@ class CalendarEventController extends Controller
             'permission' => 'nullable|integer|in:1,2,3',
         ]);
 
+        if ($event->rrule && empty($data['rrule'])) {
+            $data['rrule'] = null;
+        }
+        if (!empty($data['rrule']) && !$data['all_day']){
+            $data['rrule']['duration'] = $this->formatDuration($data['end_time'],$data['start_time']);
+        }
 
         $event->update($data);
 

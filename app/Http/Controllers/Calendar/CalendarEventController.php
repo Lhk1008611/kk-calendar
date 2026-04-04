@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Calendar;
 use App\Http\Controllers\Controller;
 use App\Models\Calendar;
 use App\Models\CalendarEvent;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -100,9 +101,13 @@ class CalendarEventController extends Controller
             'priority' => 'nullable|integer|in:1,2,3',
             'location' => 'nullable|string|max:255',
             'color' => 'nullable|string|max:7',
-            'rrule' => 'nullable|json',
+            'rrule' => 'nullable',
             'permission' => 'nullable|integer|in:1,2,3',
         ]);
+
+        if ($data['rrule']){
+            $data['rrule']['duration'] = $this->formatDuration($data['end_time'],$data['start_time']);
+        }
 
         $event = CalendarEvent::create($data);
 
@@ -136,9 +141,10 @@ class CalendarEventController extends Controller
             'priority' => 'nullable|integer|in:1,2,3',
             'location' => 'nullable|string|max:255',
             'color' => 'nullable|string|max:7',
-            'rrule' => 'nullable|json',
+            'rrule' => 'nullable',
             'permission' => 'nullable|integer|in:1,2,3',
         ]);
+
 
         $event->update($data);
 
@@ -174,4 +180,12 @@ class CalendarEventController extends Controller
     }
 
 
+    private function formatDuration($start, $end) {
+        $start = Carbon::parse($start);
+        $end   = Carbon::parse($end);
+        $diffMinutes = $end->diffInMinutes($start); // 总分钟数（绝对值）
+        $hours = floor($diffMinutes / 60);
+        $minutes = $diffMinutes % 60;
+        return sprintf("%02d:%02d", $hours, $minutes);
+    }
 }

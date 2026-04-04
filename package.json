@@ -18,6 +18,7 @@
         "@fullcalendar/daygrid": "^6.1.20",
         "@fullcalendar/interaction": "^6.1.20",
         "@fullcalendar/multimonth": "^6.1.20",
+        "@fullcalendar/rrule": "^6.1.20",
         "@fullcalendar/timegrid": "^6.1.20",
         "@fullcalendar/vue3": "^6.1.20",
         "bootstrap": "^5.3.8",

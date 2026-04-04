@@ -53,8 +53,9 @@
                                     <option value="yearly">每年</option>
                                 </select>
                             </div>
+
                             <div v-if="eventForm.repeat_type" class="mb-3">
-                                <label class="form-label">重复结束日期（可选）</label>
+                                <label class="form-label">重复结束日期</label>
                                 <input type="date" class="form-control" v-model="eventForm.repeat_until">
                             </div>
 
@@ -169,6 +170,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import zhCnLocale from '@fullcalendar/core/locales/zh-cn';
+import rrulePlugin from '@fullcalendar/rrule'
 import {api} from '@/axios';
 import moment from 'moment';
 import {useToast} from 'vue-toastification';
@@ -180,7 +182,7 @@ const toast = useToast();
 
 // 日历配置
 const calendarOptions = {
-    plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
+    plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, rrulePlugin],
     initialView: 'timeGridWeek', // 默认显示周视图
     locale: zhCnLocale,              // 设置中文
     headerToolbar: {
@@ -246,6 +248,7 @@ const eventForm = ref({
     all_day: false,
     repeat_type: '',
     repeat_until: '',
+    repeat_dtstart: '',
     color: '#3788d8', // 默认蓝色
 });
 
@@ -309,9 +312,9 @@ const updateEventDate = async (info) => {
             data.end_time = formatLocal(endTime);
         } else {
             data.start_time = event.start.toISOString();
-            if (event.end){
+            if (event.end) {
                 data.end_time = event.end.toISOString();
-            }else {
+            } else {
                 endTime.setHours(endTime.getUTCHours() + 1);
                 data.end_time = formatLocal(endTime);
             }
@@ -379,6 +382,7 @@ const openAddEventModal = (info) => {
         end_time: endDate,
         all_day: info.allDay,
         repeat_type: '',
+        repeat_dtstart: startDate.substring(0, 10),
         repeat_until: '',
         color: '#3788d8',
     };
@@ -398,6 +402,7 @@ const formatLocal = (date) => {
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
+
 // 提交新增事件
 const submitEvent = async () => {
     if (!eventForm.value.title) {
@@ -408,24 +413,32 @@ const submitEvent = async () => {
     eventLoading.value = true;
     eventError.value = '';
 
+    const startTime = new Date(eventForm.value.start_time);
+    const endTime = new Date(eventForm.value.end_time);
+
     // 构建请求数据
     const data = {
         calendar_id: calendar.value.id, // 将由后端根据当前用户默认日历自动填充或前端传入，这里简单使用默认日历
         title: eventForm.value.title,
         description: eventForm.value.description,
-        start_time: new Date(eventForm.value.start_time).toISOString(),
-        end_time: new Date(eventForm.value.end_time).toISOString(),
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
         all_day: eventForm.value.all_day,
         color: eventForm.value.color,
     };
 
     // 处理重复规则
     if (eventForm.value.repeat_type) {
-        let rrule = {freq: eventForm.value.repeat_type.toUpperCase()};
+        let rrule = {
+            freq: eventForm.value.repeat_type,
+            dtstart: startTime.toISOString(),
+        };
         if (eventForm.value.repeat_until) {
             rrule.until = eventForm.value.repeat_until;
         }
-        data.rrule = JSON.stringify(rrule);
+        data.rrule = rrule;
+        console.log(rrule);
+        console.log(data.rrule);
     }
 
     try {
@@ -461,17 +474,31 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
         let events = [];
         // 后端返回的 events 是数组，FullCalendar 需要格式为 [{ id, title, start, end, ... }]
         if (response.events) {
-            events = response.events.map(event => ({
-                id: event.id,
-                title: event.title,
-                start: event.start_time.toLocaleString(),
-                end: event.end_time.toLocaleString(),
-                allDay: event.all_day,
-                color: event.color,
-                extendedProps: {
-                    description: event.description,
-                },
-            }));
+            response.events.forEach((event) => {
+                const data = {
+                    id: event.id,
+                    title: event.title,
+                    allDay: event.all_day,
+                    color: event.color,
+                    extendedProps: {
+                        description: event.description,
+                    },
+                };
+                if (event.rrule) {
+                    data.rrule = {
+                        dtstart: event.rrule.dtstart,
+                        freq: event.rrule.freq,
+                        until: event.rrule.until,
+                    }
+                    if (!event.allDay) {
+                        data.duration = event.rrule.duration
+                    }
+                } else {
+                    data.start = event.start_time.toLocaleString();
+                    data.end = event.end_time.toLocaleString();
+                }
+                events.push(data);
+            })
         }
         successCallback(events);
     } catch (error) {

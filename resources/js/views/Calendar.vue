@@ -304,9 +304,9 @@ const updateEventDate = async (info) => {
         const data = {
             all_day: event.allDay,
         };
-        console.log(event);
+        const rrule = allEvents.find(value => String(value.id) === String(event.id)).rrule
+        //默认结束时间
         let endTime = new Date(event.start)
-
         if (event.allDay) {
             endTime.setDate(endTime.getDate() + 1);
             data.start_time = formatLocal(event.start);
@@ -320,8 +320,15 @@ const updateEventDate = async (info) => {
                 data.end_time = formatLocal(endTime);
             }
         }
+        if (rrule) {
+            data.rrule = rrule;
+            data.rrule.dtstart = data.start_time;
+        }
         await api.patch(`/calendar_event/${event.id}`, data);
-        // 成功后可提示
+        // 刷新日历
+        if (fullCalendarRef.value) {
+            fullCalendarRef.value.getApi().refetchEvents();
+        }
     } catch (error) {
         console.error('更新失败', error);
         // 如果失败，可重新加载以恢复原状态

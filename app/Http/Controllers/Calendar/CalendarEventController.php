@@ -149,6 +149,9 @@ class CalendarEventController extends Controller
         if (!empty($data['rrule']) && !$data['all_day']){
             $data['rrule']['duration'] = $this->formatDuration($data['end_time'],$data['start_time']);
         }
+        if ($data['all_day'] && $event->rrule['duration'] && $data['rrule']['duration']) {
+            unset($data['rrule']['duration']);
+        }
 
         $event->update($data);
 

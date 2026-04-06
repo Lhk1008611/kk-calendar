@@ -160,11 +160,50 @@
             </div>
         </div>
 
+        <!-- 普通删除确认模态框 -->
+        <div class="modal fade" id="deleteConfirmModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger">确认删除</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-danger">确认删除</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 重复事件删除选择模态框 -->
+        <div class="modal fade" id="deleteChoiceModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger">删除重复事件</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>请选择删除方式：</p>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-danger" id="delete-occurrence">仅删除当前实例
+                        </button>
+                        <button type="button" class="btn btn-danger" id="delete-series">删除整个系列</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </template>
 
 <script setup>
-import {ref} from 'vue';
+import {onMounted, onUnmounted, ref} from 'vue';
 import FullCalendar from '@fullcalendar/vue3';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -232,13 +271,133 @@ const calendarOptions = {
     eventClick: (info) => {
         // 显示事件详情弹窗
         openEditModal(info.event);
+    },
+    eventDidMount: (info) => {
+        const {event, el} = info;
+        const isOccurrence = allEvents.find(value => String(value.id) === String(event.id)).rrule || false;
+        const originalEventId = event.id;
+        const startDate = event.start ? event.start.toISOString() : null;
+
+        // 找到事件容器
+        const eventContainer = el.closest('.fc-event');
+        if (!eventContainer) return;
+
+        // 创建一个包装容器，用于放置删除按钮（不修改原有布局）
+        const wrapper = document.createElement('div');
+        wrapper.style.position = 'relative';
+        wrapper.style.width = '100%';
+        wrapper.style.height = '100%';
+        // 将原有内容包裹进 wrapper
+        eventContainer.childNodes.forEach(node => wrapper.appendChild(node.cloneNode(true)));
+        // 清空原容器，添加 wrapper
+        eventContainer.innerHTML = '';
+        eventContainer.appendChild(wrapper);
+
+        // 创建删除按钮
+        const deleteBtn = document.createElement('div');
+        deleteBtn.className = 'fc-event-delete-wrapper';
+        deleteBtn.innerHTML = '<i class="bi bi-trash3"></i>';
+        deleteBtn.title = '删除事件';
+        deleteBtn.style.position = 'absolute';
+        deleteBtn.style.top = '-12px';
+        deleteBtn.style.right = '-8px';
+        deleteBtn.style.zIndex = '10';
+        deleteBtn.style.backgroundColor = '#fff';
+        deleteBtn.style.borderRadius = '50%';
+        deleteBtn.style.width = '24px';
+        deleteBtn.style.height = '24px';
+        deleteBtn.style.display = 'flex';
+        deleteBtn.style.alignItems = 'center';
+        deleteBtn.style.justifyContent = 'center';
+        deleteBtn.style.cursor = 'pointer';
+        deleteBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        deleteBtn.style.border = '1px solid #ddd';
+        deleteBtn.style.color = '#dc3545';
+        deleteBtn.style.fontSize = '12px';
+        deleteBtn.style.opacity = '0';
+        deleteBtn.style.transition = 'opacity 0.2s';
+
+        // 鼠标悬浮显示按钮
+        eventContainer.addEventListener('mouseenter', () => {
+            deleteBtn.style.opacity = '1';
+        });
+        eventContainer.addEventListener('mouseleave', () => {
+            deleteBtn.style.opacity = '0';
+        });
+
+        // 点击删除按钮，阻止冒泡
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            if (isOccurrence) {
+                showDeleteChoiceModal(originalEventId, startDate);
+            } else {
+                confirmDeleteModal.show({
+                    message: '确定删除这个事件吗？',
+                    onConfirm: () => deleteEvent(event.id)
+                });
+            }
+        });
+        eventContainer.appendChild(deleteBtn);
     }
+};
+
+let allEvents = [];
+
+const getDefaultEvents = async function (info, successCallback, failureCallback) {
+    try {
+        // info 包含 start 和 end 对象（moment 或 Date）
+        const startLocal = moment(info.start).format('YYYY-MM-DD HH:mm:ss');
+        const endLocal = moment(info.end).format('YYYY-MM-DD HH:mm:ss');
+        let response = await api.get('/calendar_event', {
+            params: {
+                start: startLocal,
+                end: endLocal
+            }
+        });
+        response = response.data;
+        allEvents = response.events;
+        calendar.value = response.calendar;
+        let events = [];
+        // 后端返回的 events 是数组，FullCalendar 需要格式为 [{ id, title, start, end, ... }]
+        if (response.events) {
+            events = response.events.map(event => {
+                const data = {
+                    id: event.id,
+                    title: event.title,
+                    allDay: event.all_day,
+                    color: event.color,
+                    extendedProps: {
+                        description: event.description,
+                    },
+                };
+                if (event.rrule) {
+                    data.rrule = {
+                        dtstart: event.rrule.dtstart,
+                        freq: event.rrule.freq,
+                        until: event.rrule.until,
+                    }
+                    if (!event.allDay) {
+                        data.duration = event.rrule.duration;
+                    }
+                    data.exdate = event.rrule.exdate ?? []
+                }
+                data.start = event.start_time;
+                data.end = event.end_time;
+                return data;
+            })
+        }
+        console.log(events)
+        successCallback(events);
+    } catch (error) {
+        failureCallback(error);
+    }
+
 };
 
 const addModal = ref(null);
 const eventLoading = ref(false);
 const eventError = ref('');
-
 // 表单数据
 const eventForm = ref({
     title: '',
@@ -251,142 +410,6 @@ const eventForm = ref({
     repeat_dtstart: '',
     color: '#3788d8', // 默认蓝色
 });
-
-// 编辑相关状态
-const editForm = ref({
-    id: null,
-    title: '',
-    description: '',
-    start_time: '',
-    end_time: '',
-    all_day: false,
-    repeat_type: '',
-    repeat_until: '',
-    color: '#3788d8',
-});
-const editLoading = ref(false);
-const editError = ref('');
-const editModal = ref(null);
-
-// 打开编辑模态框
-const openEditModal = (event) => {
-    // 从 FullCalendar 事件对象中提取数据
-    const startTime = formatLocal(event.start);
-    let endTime = '';
-    if (event.allDay && !event.end) {
-        endTime = new Date(event.start)
-        endTime.setDate(endTime.getDate() + 1);
-        endTime = formatLocal(endTime);
-    }
-    if (event.end) {
-        endTime = formatLocal(event.end);
-    }
-    const rrule = allEvents.find(value => String(value.id) === String(event.id)).rrule
-    editForm.value = {
-        id: event.id,
-        title: event.title,
-        description: event.extendedProps.description || '',
-        start_time: startTime,
-        end_time: endTime,
-        all_day: event.allDay || false,
-        repeat_type: rrule ? rrule.freq : '',
-        repeat_until: rrule ? rrule.until : '',
-        color: event.backgroundColor || '#3788d8',
-    };
-    editError.value = '';
-    editModal.value = new Modal(document.getElementById('editEventModal'));
-    editModal.value.show();
-};
-// 更新事件日期
-const updateEventDate = async (info) => {
-    try {
-        const event = info.event;
-        const data = {
-            all_day: event.allDay,
-        };
-        const rrule = allEvents.find(value => String(value.id) === String(event.id)).rrule
-        //默认结束时间
-        let endTime = new Date(event.start)
-        if (event.allDay) {
-            endTime.setDate(endTime.getDate() + 1);
-            data.start_time = formatLocal(event.start);
-            data.end_time = formatLocal(endTime);
-        } else {
-            data.start_time = event.start.toISOString();
-            if (event.end) {
-                data.end_time = event.end.toISOString();
-            } else {
-                endTime.setHours(endTime.getUTCHours() + 1);
-                data.end_time = formatLocal(endTime);
-            }
-        }
-        if (rrule) {
-            data.rrule = rrule;
-            data.rrule.dtstart = data.start_time;
-        }
-        await api.patch(`/calendar_event/${event.id}`, data);
-        // 刷新日历
-        if (fullCalendarRef.value) {
-            fullCalendarRef.value.getApi().refetchEvents();
-        }
-    } catch (error) {
-        console.error('更新失败', error);
-        // 如果失败，可重新加载以恢复原状态
-
-    }
-};
-// 提交更新
-const updateEvent = async () => {
-    if (!editForm.value.title) {
-        editError.value = '请填写标题';
-        return;
-    }
-    editLoading.value = true;
-    editError.value = '';
-
-    const data = {
-        title: editForm.value.title,
-        description: editForm.value.description,
-        all_day: editForm.value.all_day,
-        color: editForm.value.color,
-        start_time: new Date(editForm.value.start_time).toISOString(),
-        end_time: new Date(editForm.value.end_time).toISOString(),
-    };
-
-    let rrule = allEvents.find(value => String(value.id) === String(editForm.value.id)).rrule;
-
-    if (!rrule) {
-        rrule = {
-            freq: '',
-            dtstart: '',
-            until: ''
-        }
-    }
-
-    if (editForm.value.repeat_type) {
-        rrule.freq = editForm.value.repeat_type
-        rrule.dtstart = new Date(editForm.value.start_time).toISOString();
-        if (editForm.value.repeat_until)
-            rrule.until = editForm.value.repeat_until;
-        data.rrule = rrule;
-    }
-    console.log(data);
-
-    try {
-        await api.patch(`/calendar_event/${editForm.value.id}`, data);
-        toast.success('事件更新成功');
-        editModal.value.hide();
-        // 刷新日历
-        if (fullCalendarRef.value) {
-            fullCalendarRef.value.getApi().refetchEvents();
-        }
-    } catch (error) {
-        editError.value = error.response?.data?.message || '更新失败，请重试';
-    } finally {
-        editLoading.value = false;
-    }
-};
-
 
 // 打开新增模态框
 const openAddEventModal = (info) => {
@@ -409,16 +432,6 @@ const openAddEventModal = (info) => {
     // 创建新实例
     addModal.value = new Modal(document.getElementById('addEventModal'));
     addModal.value.show();
-};
-
-// 预填充时间（由点击事件设置），后端存储 utc 时间，前端将后端的 utc 时间显示为本地时间即可
-const formatLocal = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 // 提交新增事件
@@ -471,56 +484,230 @@ const submitEvent = async () => {
     }
 };
 
-let allEvents = [];
 
+// 编辑相关状态
+const editForm = ref({
+    id: null,
+    title: '',
+    description: '',
+    start_time: '',
+    end_time: '',
+    all_day: false,
+    repeat_type: '',
+    repeat_until: '',
+    color: '#3788d8',
+});
+const editLoading = ref(false);
+const editError = ref('');
+const editModal = ref(null);
 
-const getDefaultEvents = async function (info, successCallback, failureCallback) {
-    try {
-        // info 包含 start 和 end 对象（moment 或 Date）
-        const startLocal = moment(info.start).format('YYYY-MM-DD HH:mm:ss');
-        const endLocal = moment(info.end).format('YYYY-MM-DD HH:mm:ss');
-        let response = await api.get('/calendar_event', {
-            params: {
-                start: startLocal,
-                end: endLocal
-            }
-        });
-        response = response.data;
-        allEvents = response.events;
-        calendar.value = response.calendar;
-        let events = [];
-        // 后端返回的 events 是数组，FullCalendar 需要格式为 [{ id, title, start, end, ... }]
-        if (response.events) {
-            events = response.events.map(event => {
-                const data = {
-                    id: event.id,
-                    title: event.title,
-                    allDay: event.all_day,
-                    color: event.color,
-                    extendedProps: {
-                        description: event.description,
-                    },
-                };
-                if (event.rrule) {
-                    data.rrule = {
-                        dtstart: event.rrule.dtstart,
-                        freq: event.rrule.freq,
-                        until: event.rrule.until,
-                    }
-                    if (!event.allDay) {
-                        data.duration = event.rrule.duration;
-                    }
-                }
-                data.start = event.start_time;
-                data.end = event.end_time;
-                return data;
-            })
+// 打开编辑模态框
+const openEditModal = (event) => {
+    // 从 FullCalendar 事件对象中提取数据
+    const startTime = formatLocal(event.start);
+    let endTime = '';
+    if (event.allDay && !event.end) {
+        endTime = new Date(event.start)
+        endTime.setDate(endTime.getDate() + 1);
+        endTime = formatLocal(endTime);
+    }
+    if (event.end) {
+        endTime = formatLocal(event.end);
+    }
+    const rrule = allEvents.find(value => String(value.id) === String(event.id)).rrule
+    editForm.value = {
+        id: event.id,
+        title: event.title,
+        description: event.extendedProps.description || '',
+        start_time: startTime,
+        end_time: endTime,
+        all_day: event.allDay || false,
+        repeat_type: rrule ? rrule.freq : '',
+        repeat_until: rrule ? rrule.until : '',
+        color: event.backgroundColor || '#3788d8',
+    };
+    editError.value = '';
+    editModal.value = new Modal(document.getElementById('editEventModal'));
+    editModal.value.show();
+};
+
+// 提交更新
+const updateEvent = async () => {
+    if (!editForm.value.title) {
+        editError.value = '请填写标题';
+        return;
+    }
+    editLoading.value = true;
+    editError.value = '';
+
+    const data = {
+        title: editForm.value.title,
+        description: editForm.value.description,
+        all_day: editForm.value.all_day,
+        color: editForm.value.color,
+        start_time: new Date(editForm.value.start_time).toISOString(),
+        end_time: new Date(editForm.value.end_time).toISOString(),
+    };
+
+    let rrule = allEvents.find(value => String(value.id) === String(editForm.value.id)).rrule;
+
+    if (!rrule) {
+        rrule = {
+            freq: '',
+            dtstart: '',
+            until: ''
         }
-        successCallback(events);
-    } catch (error) {
-        failureCallback(error);
     }
 
+    if (editForm.value.repeat_type) {
+        rrule.freq = editForm.value.repeat_type
+        rrule.dtstart = new Date(editForm.value.start_time).toISOString();
+        if (editForm.value.repeat_until)
+            rrule.until = editForm.value.repeat_until;
+        data.rrule = rrule;
+    }
+    console.log(data);
+
+    try {
+        await api.patch(`/calendar_event/${editForm.value.id}`, data);
+        toast.success('事件更新成功');
+        editModal.value.hide();
+        // 刷新日历
+        if (fullCalendarRef.value) {
+            fullCalendarRef.value.getApi().refetchEvents();
+        }
+    } catch (error) {
+        editError.value = error.response?.data?.message || '更新失败，请重试';
+    } finally {
+        editLoading.value = false;
+    }
+};
+
+// 更新事件日期
+const updateEventDate = async (info) => {
+    try {
+        const event = info.event;
+        const data = {
+            all_day: event.allDay,
+        };
+        const rrule = allEvents.find(value => String(value.id) === String(event.id)).rrule
+        //默认结束时间
+        let endTime = new Date(event.start)
+        if (event.allDay) {
+            endTime.setDate(endTime.getDate() + 1);
+            data.start_time = formatLocal(event.start);
+            data.end_time = formatLocal(endTime);
+        } else {
+            data.start_time = event.start.toISOString();
+            if (event.end) {
+                data.end_time = event.end.toISOString();
+            } else {
+                endTime.setHours(endTime.getUTCHours() + 1);
+                data.end_time = formatLocal(endTime);
+            }
+        }
+        if (rrule) {
+            data.rrule = rrule;
+            data.rrule.dtstart = data.start_time;
+        }
+        await api.patch(`/calendar_event/${event.id}`, data);
+        // 刷新日历
+        if (fullCalendarRef.value) {
+            fullCalendarRef.value.getApi().refetchEvents();
+        }
+    } catch (error) {
+        console.error('更新失败', error);
+        // 如果失败，可重新加载以恢复原状态
+    }
+};
+
+// 删除确认模态框（用于删除事件实例）
+const confirmDeleteModal = {
+    show: (options) => {
+        const modalEl = document.getElementById('deleteConfirmModal');
+        if (!modalEl) return;
+        const messageEl = modalEl.querySelector('.modal-body p');
+        if (messageEl) messageEl.innerText = options.message;
+        const confirmBtn = modalEl.querySelector('.btn-danger');
+        const oldHandler = confirmBtn.onclick;
+        confirmBtn.onclick = () => {
+            options.onConfirm();
+            const modal = Modal.getInstance(modalEl);
+            modal.hide();
+        };
+        const modal = new Modal(modalEl);
+        modal.show();
+    }
+};
+
+// 删除普通事件
+const deleteEvent = async (eventId) => {
+    try {
+        await api.delete(`/calendar_events`, {data: {ids: [eventId]}});
+        toast.success('事件已删除');
+        if (fullCalendarRef.value) {
+            fullCalendarRef.value.getApi().refetchEvents();
+        }
+    } catch (error) {
+        toast.error('删除失败');
+    }
+};
+
+// 删除整个重复事件系列
+const deleteEventSeries = async (originalEventId) => {
+    try {
+        await api.delete(`/calendar_events`, {data: {ids: [originalEventId]}});
+        toast.success('重复事件系列已删除');
+        if (fullCalendarRef.value) {
+            fullCalendarRef.value.getApi().refetchEvents();
+        }
+    } catch (error) {
+        toast.error('删除失败');
+    }
+};
+
+// 删除当前重复事件实例（添加 EXDATE）
+const deleteSingleOccurrence = async (originalEventId, startDate) => {
+    console.log(startDate)
+    try {
+        await api.patch(`/calendar_event/${originalEventId}/exclude`, {date: startDate});
+        toast.success('当前实例已删除');
+        if (fullCalendarRef.value) {
+            const calendarApi = fullCalendarRef.value.getApi();
+            calendarApi.refetchEvents();
+            calendarApi.render();
+        }
+    } catch (error) {
+        toast.error('删除失败');
+    }
+};
+
+// 显示选择删除类型的模态框（两个按钮）
+const showDeleteChoiceModal = (originalEventId, startDate) => {
+    const modalEl = document.getElementById('deleteChoiceModal');
+    if (!modalEl) return;
+    const deleteSeriesBtn = modalEl.querySelector('#delete-series');
+    const deleteOccurrenceBtn = modalEl.querySelector('#delete-occurrence');
+    const modal = new Modal(modalEl);
+    deleteSeriesBtn.onclick = () => {
+        modal.hide();
+        deleteEventSeries(originalEventId);
+    };
+    deleteOccurrenceBtn.onclick = () => {
+        modal.hide();
+        deleteSingleOccurrence(originalEventId, startDate);
+    };
+    modal.show();
+};
+
+// 预填充时间（由点击事件设置），后端存储 utc 时间，前端将后端的 utc 时间显示为本地时间即可
+const formatLocal = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 // 强制移除 Bootstrap 遮罩层
@@ -593,5 +780,23 @@ const removeBackdrops = (() => {
 :deep(.fc-prev-button),
 :deep(.fc-next-button) {
     margin: 0 0.25rem;
+}
+
+.fc-event-custom {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding: 2px 20px 2px 4px;
+}
+
+.fc-event-delete-btn {
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    padding: 2px;
+}
+
+.fc-event-delete-btn:hover {
+    background: #fff;
+    color: #c82333;
 }
 </style>

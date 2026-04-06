@@ -153,6 +153,17 @@ class CalendarEventController extends Controller
             unset($data['rrule']['duration']);
         }
 
+//        if (!empty($event->rrule['exdate'])){
+//            $start = Carbon::parse($data['start_time']);
+//            $end = Carbon::parse($data['end_time']);
+//            $delta = $end->diffInDays($start);
+//            $exdates = $event->rrule['exdate'] ?? [];
+//            $newExdates = array_map(function($date) use ($delta) {
+//                return Carbon::parse($date)->addMilliseconds($delta)->toISOString();
+//            }, $exdates);
+//            $data['rrule']['exdate'] = $newExdates;
+//        }
+
         $event->update($data);
 
         return response()->json($event);
@@ -184,6 +195,19 @@ class CalendarEventController extends Controller
         CalendarEvent::whereIn('id', $ids)->delete();
 
         return response()->json(['message' => 'Deleted successfully']);
+    }
+
+    public function excludeOccurrence(Request $request, $id)
+    {
+        $event = CalendarEvent::findOrFail($id);
+        $date = $request->input('date'); // ISO 8601 字符串
+        $exdates = $event->rrule['exdate'] ?? [];
+        if (!in_array($date, $exdates)) {
+            $exdates[] = $date;
+            $event->fill(['rrule' => array_merge($event->rrule ?? [], ['exdate' => $exdates])]);
+            $event->save();
+        }
+        return response()->json(['message' => '已排除该实例']);
     }
 
 

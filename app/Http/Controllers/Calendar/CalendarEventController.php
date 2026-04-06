@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Calendar;
 use App\Models\CalendarEvent;
 use Carbon\Carbon;
+use DateTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -78,7 +79,6 @@ class CalendarEventController extends Controller
     }
 
 
-
     /**
      * 新增事件（使用 PUT 方法）
      */
@@ -106,7 +106,7 @@ class CalendarEventController extends Controller
         ]);
 
         if ($data['rrule'] && !$data['all_day']) {
-            $data['rrule']['duration'] = $this->formatDuration($data['end_time'],$data['start_time']);
+            $data['rrule']['duration'] = $this->formatDuration($data['end_time'], $data['start_time']);
         }
         $event = CalendarEvent::create($data);
         return response()->json($event, 201);
@@ -114,6 +114,7 @@ class CalendarEventController extends Controller
 
     /**
      * 更新事件（使用 PATCH 方法）
+     * @throws \DateMalformedStringException
      */
     public function update(Request $request, $id)
     {
@@ -122,7 +123,7 @@ class CalendarEventController extends Controller
         // 查找事件，并确保属于当前用户
         $event = CalendarEvent::whereHas('calendar', function ($q) use ($user) {
             $q->where('user_id', $user->id);
-        })->findOrFail($id,['id','rrule']);
+        })->findOrFail($id, ['id', 'rrule']);
 
         $data = $request->validate([
             'calendar_id' => [
@@ -146,23 +147,31 @@ class CalendarEventController extends Controller
         if ($event->rrule && empty($data['rrule'])) {
             $data['rrule'] = null;
         }
-        if (!empty($data['rrule']) && !$data['all_day']){
-            $data['rrule']['duration'] = $this->formatDuration($data['end_time'],$data['start_time']);
+        if (!empty($data['rrule']) && !$data['all_day']) {
+            $data['rrule']['duration'] = $this->formatDuration($data['end_time'], $data['start_time']);
         }
+
         if ($data['all_day'] && $event->rrule['duration'] && $data['rrule']['duration']) {
             unset($data['rrule']['duration']);
         }
 
-//        if (!empty($event->rrule['exdate'])){
-//            $start = Carbon::parse($data['start_time']);
-//            $end = Carbon::parse($data['end_time']);
-//            $delta = $end->diffInDays($start);
-//            $exdates = $event->rrule['exdate'] ?? [];
-//            $newExdates = array_map(function($date) use ($delta) {
-//                return Carbon::parse($date)->addMilliseconds($delta)->toISOString();
-//            }, $exdates);
-//            $data['rrule']['exdate'] = $newExdates;
-//        }
+        // 移动重复事件被删除的实例需要同步
+        $exdates = $event->rrule['exdate'] ?? [];
+        if (!empty($event->rrule['exdate'])) {
+            $startDateTime = new DateTime($data['start_time']);
+            $startDate = $startDateTime->format('Y-m-d');
+            $startTime = $startDateTime->format('H:i:s');
+            $newExdates = array_reduce($exdates, function ($arr, $exdate) use ($startDate, $startTime) {
+                $exDateTime = new DateTime($exdate);
+                if ($exDateTime->format('Y-m-d') == $startDate) return;
+                // 解析新时间的小时、分钟、秒
+                list($hour, $minute, $second) = explode(':', $startTime);
+                $exDateTime->setTime($hour, $minute, $second);
+                $arr[] = $exDateTime->format('Y-m-d\TH:i:s\Z'); // 保持 UTC 格式
+                return $arr;
+            }, []);
+            $data['rrule']['exdate'] = $newExdates;
+        }
 
         $event->update($data);
 
@@ -211,9 +220,10 @@ class CalendarEventController extends Controller
     }
 
 
-    private function formatDuration($start, $end) {
+    private function formatDuration($start, $end)
+    {
         $start = Carbon::parse($start);
-        $end   = Carbon::parse($end);
+        $end = Carbon::parse($end);
         $diffMinutes = $end->diffInMinutes($start); // 总分钟数（绝对值）
         $hours = floor($diffMinutes / 60);
         $minutes = $diffMinutes % 60;

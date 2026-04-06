@@ -587,28 +587,29 @@ const updateEvent = async () => {
 const updateEventDate = async (info) => {
     try {
         const event = info.event;
+        const startTime = event.start;
         const data = {
             all_day: event.allDay,
         };
         const rrule = allEvents.find(value => String(value.id) === String(event.id)).rrule
-        //默认结束时间
-        let endTime = new Date(event.start)
         if (event.allDay) {
-            endTime.setDate(endTime.getDate() + 1);
-            data.start_time = formatLocal(event.start);
-            data.end_time = formatLocal(endTime);
+            startTime.setDate(startTime.getDate() + 1)
+            const startDate = startTime.toISOString().split('T')[0]
+            data.start_time = startDate;
+            data.end_time = startDate;        //默认结束时间
         } else {
             data.start_time = event.start.toISOString();
             if (event.end) {
                 data.end_time = event.end.toISOString();
             } else {
-                endTime.setHours(endTime.getUTCHours() + 1);
-                data.end_time = formatLocal(endTime);
+                startTime.setHours(startTime.getUTCHours() + 1);
+                data.end_time = formatLocal(startTime);
             }
         }
         if (rrule) {
             data.rrule = rrule;
             data.rrule.dtstart = data.start_time;
+            data.rrule.duration = null;
         }
         await api.patch(`/calendar_event/${event.id}`, data);
         // 刷新日历
@@ -668,9 +669,18 @@ const deleteEventSeries = async (originalEventId) => {
 
 // 删除当前重复事件实例（添加 EXDATE）
 const deleteSingleOccurrence = async (originalEventId, startDate) => {
-    console.log(startDate)
+    const allDay = allEvents.find(value => String(value.id) === String(originalEventId)).all_day;
+    const data = {
+        all_day : allDay,
+        date: startDate,
+    }
+    if (allDay) {
+        const allDayStartTime = new Date(startDate);
+        allDayStartTime.setDate(allDayStartTime.getDate() + 1);
+        data.date = allDayStartTime;
+    }
     try {
-        await api.patch(`/calendar_event/${originalEventId}/exclude`, {date: startDate});
+        await api.patch(`/calendar_event/${originalEventId}/exclude`, data);
         toast.success('当前实例已删除');
         if (fullCalendarRef.value) {
             const calendarApi = fullCalendarRef.value.getApi();

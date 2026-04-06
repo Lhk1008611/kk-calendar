@@ -134,7 +134,7 @@ class CalendarEventController extends Controller
             'title' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'start_time' => 'sometimes|date',
-            'end_time' => 'sometimes|date|after:start_time',
+            'end_time' => 'sometimes|date|after_or_equal:start_time',
             'all_day' => 'sometimes|boolean',
             'status' => 'nullable|integer|in:1,2,3,4',
             'priority' => 'nullable|integer|in:1,2,3',
@@ -151,8 +151,12 @@ class CalendarEventController extends Controller
             $data['rrule']['duration'] = $this->formatDuration($data['end_time'], $data['start_time']);
         }
 
-        if ($data['all_day'] && $event->rrule['duration'] && $data['rrule']['duration']) {
-            unset($data['rrule']['duration']);
+        if ($data['all_day']) {
+            $oldDuration = $event->rrule['duration'] ?? [];
+            $newDuration = $data['rrule']['duration'] ?? [];
+            if (!empty($oldDuration) && !empty($newDuration)) {
+                unset($data['rrule']['duration']);
+            }
         }
 
         // 移动重复事件被删除的实例需要同步
@@ -206,16 +210,24 @@ class CalendarEventController extends Controller
         return response()->json(['message' => 'Deleted successfully']);
     }
 
+    /**
+     * @throws \DateMalformedStringException
+     */
     public function excludeOccurrence(Request $request, $id)
     {
         $event = CalendarEvent::findOrFail($id);
         $date = $request->input('date'); // ISO 8601 字符串
+        $allDay = $request->input('all_day');
+        $allDayExDate = new DateTime($date)->format('Y-m-d');
         $exdates = $event->rrule['exdate'] ?? [];
-        if (!in_array($date, $exdates)) {
-            $exdates[] = $date;
-            $event->fill(['rrule' => array_merge($event->rrule ?? [], ['exdate' => $exdates])]);
-            $event->save();
+        if ($allDay && !in_array($allDayExDate, $exdates)) {
+            $exdates[] = $allDayExDate;
         }
+        if (!$allDay && !in_array($date, $exdates)) {
+            $exdates[] = $date;
+        }
+        $event->fill(['rrule' => array_merge($event->rrule ?? [], ['exdate' => $exdates])]);
+        $event->save();
         return response()->json(['message' => '已排除该实例']);
     }
 

@@ -274,7 +274,9 @@ const calendarOptions = {
     },
     eventDidMount: (info) => {
         const {event, el} = info;
-        const isOccurrence = allEvents.find(value => String(value.id) === String(event.id)).rrule || false;
+        const currentEvent = allEvents.find(value => String(value.id) === String(event.id));
+        if (!currentEvent) {return;}
+        const isOccurrence = currentEvent.rrule ?? false;
         const originalEventId = event.id;
         const startDate = event.start ? event.start.toISOString() : null;
 
@@ -462,7 +464,9 @@ const submitEvent = async () => {
             dtstart: startTime.toISOString(),
         };
         if (eventForm.value.repeat_until) {
-            rrule.until = eventForm.value.repeat_until;
+            const until = new Date(eventForm.value.repeat_until);
+            until.setHours(until.getHours()+16);    // 显示最后一天重复事件
+            rrule.until = until.toISOString();
         }
         data.rrule = rrule;
     }

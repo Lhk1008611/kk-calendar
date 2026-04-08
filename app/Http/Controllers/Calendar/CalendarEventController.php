@@ -7,6 +7,7 @@ use App\Models\Calendar;
 use App\Models\CalendarEvent;
 use Carbon\Carbon;
 use DateTime;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -23,34 +24,35 @@ class CalendarEventController extends Controller
         $defaultCalendar = Calendar::where('user_id', $user->id)
             ->where('is_default', true)
             ->first();
-
         if (!$defaultCalendar) {
             return response()->json([
                 'calendar' => null,
                 'events' => []
             ]);
         }
-
         // 获取时间范围参数
-        $start = $request->input('start');
-        $end = $request->input('end');
+        $params = $request->validate([
+            'start' => 'required|date',
+            'end' => 'required|date|after:start_time',
+        ]);
+        $start = $params['start'];
+        $end = $params['end'];
 
-        $query = CalendarEvent::where('calendar_id', $defaultCalendar->id);
+        $query = CalendarEvent::where('calendar_id', $defaultCalendar->id)
+            ->select(['id', 'title', 'start_time', 'end_time', 'all_day', 'color', 'description', 'rrule']);
+
         if ($start && $end) {
-            // FullCalendar 传递的是 ISO 日期字符串，需要转换为日期范围
-            // 注意：FullCalendar 传递的 start 和 end 是查询范围的开始和结束（通常是该视图的开始和结束日期）
-            // 我们需要查询事件时间与 [start, end) 有重叠的事件
             $query->where(function ($q) use ($start, $end) {
-                $q->whereBetween('start_time', [$start, $end])
-                    ->orWhereBetween('end_time', [$start, $end])
-                    ->orWhere(function ($q) use ($start, $end) {
-                        $q->where('start_time', '<=', $start)
-                            ->where('end_time', '>=', $end);
-                    });
+                // 条件1：事件时间与查询范围有重叠
+                $q->where('start_time', '<', $end)
+                    ->where('end_time', '>', $start);
+            })->orWhere(function ($q) use ($start) {
+                // 条件2：重复事件且重复结束日期大于查询开始时间
+                $q->whereNotNull('rrule')
+                    ->where('rrule_until', '>', $start);
             });
         }
-
-        $events = $query->orderBy('start_time', 'asc')->get();
+        $events = $query->orderBy('id', 'asc')->get();
         return response()->json([
             'calendar' => $defaultCalendar,
             'events' => $events,

@@ -14,7 +14,7 @@ class CalendarEvent extends Model
 
     protected $fillable = [
         'calendar_id', 'title', 'description', 'start_time', 'end_time',
-        'all_day', 'status', 'priority', 'location', 'color', 'rrule', 'permission'
+        'all_day', 'status', 'priority', 'location', 'color', 'rrule', 'rrule_until','permission'
     ];
 
     protected $casts = [
@@ -22,6 +22,7 @@ class CalendarEvent extends Model
         'end_time' => 'datetime',
         'all_day' => 'boolean',
         'rrule' => 'array',          // 自动转换 JSON 为数组
+        'rrule_until' => 'datetime'
     ];
 
     public function calendar(): BelongsTo

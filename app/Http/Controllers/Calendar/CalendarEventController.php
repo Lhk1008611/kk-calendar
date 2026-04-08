@@ -22,6 +22,7 @@ class CalendarEventController extends Controller
         $user = Auth::user();
         // 获取默认日历
         $defaultCalendar = Calendar::where('user_id', $user->id)
+            ->select(['id','color','description','is_default','name'])
             ->where('is_default', true)
             ->first();
         if (!$defaultCalendar) {
@@ -62,32 +63,33 @@ class CalendarEventController extends Controller
     /**
      * 获取事件列表（支持分页和搜索）
      */
-    public function index(Request $request)
+    public function get(Request $request)
     {
         $user = Auth::user();
+        $perPage = $request->input('per_page', 10);
+        $keyword = $request->input('keyword');
+
         $query = CalendarEvent::whereHas('calendar', function ($q) use ($user) {
             $q->where('user_id', $user->id);
         });
 
         // 按标题模糊搜索
-        if ($keyword = $request->input('keyword')) {
+        if ($keyword) {
             $query->where('title', 'like', "%{$keyword}%");
         }
 
-        $perPage = $request->input('per_page', 10);
-        $events = $query->orderBy('start_time', 'desc')->paginate($perPage);
+        $events = $query->orderBy('id', 'desc')->paginate($perPage);
 
         return response()->json($events);
     }
 
 
     /**
-     * 新增事件（使用 PUT 方法）
+     * 新增事件
      */
-    public function store(Request $request)
+    public function add(Request $request)
     {
         $user = Auth::user();
-
         $data = $request->validate([
             'calendar_id' => [
                 'required',
@@ -99,16 +101,15 @@ class CalendarEventController extends Controller
             'start_time' => 'required|date',
             'end_time' => 'required|date|after:start_time',
             'all_day' => 'boolean',
-            'status' => 'nullable|integer|in:1,2,3,4',
-            'priority' => 'nullable|integer|in:1,2,3',
-            'location' => 'nullable|string|max:255',
             'color' => 'nullable|string|max:7',
             'rrule' => 'nullable',
-            'permission' => 'nullable|integer|in:1,2,3',
         ]);
 
-        if ($data['rrule'] && !$data['all_day']) {
-            $data['rrule']['duration'] = $this->formatDuration($data['end_time'], $data['start_time']);
+        if (!empty($data['rrule'])) {
+            $data['rrule_until'] = $data['rrule']['until'];
+            if (!$data['all_day']){
+                $data['rrule']['duration'] = $this->formatDuration($data['end_time'], $data['start_time']);
+            }
         }
         $event = CalendarEvent::create($data);
         return response()->json($event, 201);
@@ -187,7 +188,7 @@ class CalendarEventController extends Controller
     /**
      * 删除事件（支持批量删除，传递 ids 数组）
      */
-    public function destroy(Request $request)
+    public function delete(Request $request)
     {
         $user = Auth::user();
 
@@ -213,6 +214,7 @@ class CalendarEventController extends Controller
     }
 
     /**
+     * 移除单个重复事件实例
      * @throws \DateMalformedStringException
      */
     public function excludeOccurrence(Request $request, $id)
@@ -234,6 +236,12 @@ class CalendarEventController extends Controller
     }
 
 
+    /**
+     * 格式化开始和结束时间差为 hh:mm
+     * @param $start
+     * @param $end
+     * @return string
+     */
     private function formatDuration($start, $end)
     {
         $start = Carbon::parse($start);

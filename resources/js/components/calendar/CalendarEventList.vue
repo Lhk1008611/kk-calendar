@@ -167,6 +167,7 @@ const changePage = (page) => {
     if (page < 1 || page > totalPages.value) return;
     currentPage.value = page;
     selectedIds.value = []; // 清除选中
+    fetchEvents();
 };
 
 // 全选逻辑

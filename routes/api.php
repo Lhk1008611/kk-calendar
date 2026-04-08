@@ -35,10 +35,10 @@ Route::middleware('auth:sanctum')->group(function (){
     Route::delete('/calendars', [CalendarController::class, 'destroy']);
 
     Route::get('/calendar_event', [CalendarEventController::class, 'getDefaultEvents']);
-    Route::get('/calendar_events', [CalendarEventController::class, 'index']);
-    Route::post('/calendar_event', [CalendarEventController::class, 'store']);   // 注意是 POST，标准 REST 用 POST 创建
+    Route::get('/calendar_events', [CalendarEventController::class, 'get']);
+    Route::post('/calendar_event', [CalendarEventController::class, 'add']);   // 注意是 POST，标准 REST 用 POST 创建
     Route::patch('/calendar_event/{id}', [CalendarEventController::class, 'update']);
-    Route::delete('/calendar_events', [CalendarEventController::class, 'destroy']); // 批量删除，通过 ids 参数
+    Route::delete('/calendar_events', [CalendarEventController::class, 'delete']); // 批量删除，通过 ids 参数
     Route::patch('/calendar_event/{id}/exclude', [CalendarEventController::class, 'excludeOccurrence']); // 移除重复事件单个实例
 });
 

@@ -67,7 +67,7 @@ class CalendarEventController extends Controller
     {
         $user = Auth::user();
         $perPage = $request->input('per_page', 10);
-        $keyword = $request->input('keyword');
+        $keyword = $request->input('keyword',null);
 
         $query = CalendarEvent::whereHas('calendar', function ($q) use ($user) {
             $q->where('user_id', $user->id);

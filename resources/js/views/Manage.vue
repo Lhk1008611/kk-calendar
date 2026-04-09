@@ -27,8 +27,8 @@
 
             <!-- 右侧内容区 -->
             <div class="col-md-9 col-lg-10">
-                <div class="content-card card shadow-sm border-0 rounded-4">
-                    <div class="card-body p-4">
+                <div class="content-card card shadow-sm border-0 rounded-4" style="height: calc(100vh - 100px);">
+                    <div class="card-body d-flex flex-column p-4" style="height: 100%;">
                         <component
                             :is="currentComponent"
                             :key="activeTab"
@@ -55,6 +55,8 @@ const currentComponent = computed(() => {
 <style scoped>
 .manage-container {
     padding: 1rem;
+    /* 确保父容器高度 */
+    height: 100%;
 }
 .nav-card {
     background-color: #fff;
@@ -69,8 +71,5 @@ const currentComponent = computed(() => {
     background-color: #e7f1ff;
     color: #0d6efd;
     border-left: 3px solid #0d6efd;
-}
-.content-card {
-    min-height: 500px;
 }
 </style>1

@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="calendar-list-container d-flex flex-column h-100">
         <!-- 操作栏：搜索、新增、删除 -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div class="d-flex gap-2">
@@ -29,9 +29,9 @@
         <hr class="my-3 opacity-25"/>
 
         <!-- 日历表格 -->
-        <div class="table-responsive">
+        <div class="table-scroll-area flex-grow-1 overflow-auto">
             <table class="table table-hover align-middle">
-                <thead class="table-secondary">
+                <thead class="table-secondary sticky-top">
                 <tr>
                     <th width="40">
                         <input
@@ -81,24 +81,24 @@
                 </tr>
                 </tbody>
             </table>
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <div class="text-muted small">
+        </div>
+
+        <!-- 分页组件（固定在底部） -->
+        <div class="pagination-bar mt-3 flex-shrink-0">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
                     共 {{ totalCount }} 条
                 </div>
-                <nav aria-label="分页导航">
+                <nav>
                     <ul class="pagination pagination-sm mb-0">
                         <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                            <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">
-                                <i class="bi bi-chevron-left"></i>
-                            </a>
+                            <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">上一页</a>
                         </li>
                         <li class="page-item disabled">
-                            <span class="page-link">{{ currentPage }} / {{ totalPages || 1 }}</span>
+                            <span class="page-link">{{ currentPage }} / {{ totalPages }}</span>
                         </li>
                         <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                            <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">
-                                <i class="bi bi-chevron-right"></i>
-                            </a>
+                            <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">下一页</a>
                         </li>
                     </ul>
                 </nav>
@@ -235,6 +235,7 @@ const changePage = (page) => {
     if (page < 1 || page > totalPages.value) return;
     currentPage.value = page;
     selectedIds.value = []; // 清除选中
+    fetchCalendars();
 };
 
 // 全选逻辑
@@ -345,11 +346,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.table-responsive {
-    border-radius: 0.5rem;
-    overflow-x: auto;
-}
-
 .table thead th {
     background-color: #e9ecef;
     border-bottom: 1px solid #dee2e6;
@@ -362,5 +358,26 @@ onMounted(() => {
 
 hr {
     border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.calendar-list-container {
+    height: 100%;
+    min-height: 0; /* 防止溢出 */
+}
+
+.table-scroll-area {
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.table-scroll-area table {
+    margin-bottom: 0;
+}
+
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: #e9ecef; /* 与表头背景色一致，避免滚动时透明 */
 }
 </style>

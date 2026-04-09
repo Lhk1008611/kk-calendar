@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="calendar-list-container d-flex flex-column h-100">
         <!-- 操作栏：搜索、删除（无新增） -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div class="d-flex gap-2">
@@ -25,9 +25,9 @@
         <hr class="my-3 opacity-25"/>
 
         <!-- 事件表格 -->
-        <div class="table-responsive">
+        <div class="table-scroll-area flex-grow-1 overflow-auto">
             <table class="table table-hover align-middle">
-                <thead class="table-secondary">
+                <thead class="table-secondary sticky-top">
                 <tr>
                     <th width="40">
                         <input
@@ -72,24 +72,24 @@
                 </tr>
                 </tbody>
             </table>
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <div class="text-muted small">
+        </div>
+
+        <!-- 分页组件 -->
+        <div class="pagination-bar mt-3 flex-shrink-0">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
                     共 {{ totalCount }} 条
                 </div>
-                <nav aria-label="分页导航">
+                <nav>
                     <ul class="pagination pagination-sm mb-0">
                         <li class="page-item" :class="{ disabled: currentPage === 1 }">
-                            <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">
-                                <i class="bi bi-chevron-left"></i>
-                            </a>
+                            <a class="page-link" href="#" @click.prevent="changePage(currentPage - 1)">上一页</a>
                         </li>
                         <li class="page-item disabled">
-                            <span class="page-link">{{ currentPage }} / {{ totalPages || 1 }}</span>
+                            <span class="page-link">{{ currentPage }} / {{ totalPages }}</span>
                         </li>
                         <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-                            <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">
-                                <i class="bi bi-chevron-right"></i>
-                            </a>
+                            <a class="page-link" href="#" @click.prevent="changePage(currentPage + 1)">下一页</a>
                         </li>
                     </ul>
                 </nav>
@@ -109,7 +109,8 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="button" class="btn btn-danger" @click="confirmDelete" :disabled="deleteLoading">
+                        <button type="button" class="btn btn-danger" @click="confirmDelete"
+                                :disabled="deleteLoading">
                             <span v-if="deleteLoading" class="spinner-border spinner-border-sm me-1"></span>
                             确认删除
                         </button>
@@ -257,5 +258,26 @@ onMounted(() => {
 
 hr {
     border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.calendar-list-container {
+    height: 100%;
+    min-height: 0; /* 防止溢出 */
+}
+
+.table-scroll-area {
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.table-scroll-area table {
+    margin-bottom: 0;
+}
+
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: #e9ecef; /* 与表头背景色一致，避免滚动时透明 */
 }
 </style>

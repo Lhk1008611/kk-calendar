@@ -30,9 +30,9 @@ Route::middleware('auth:sanctum')->group(function (){
     Route::put('/profile', [ProfileController::class, 'update']); // 更新
     Route::delete('/profile', [ProfileController::class, 'destroy']);    // 注销
 
-    Route::get('/calendars', [CalendarController::class, 'index']);
-    Route::post('/calendar', [CalendarController::class, 'store']);  // 注意：新增用 POST
-    Route::delete('/calendars', [CalendarController::class, 'destroy']);
+    Route::get('/calendars', [CalendarController::class, 'get']);
+    Route::post('/calendar', [CalendarController::class, 'add']);  // 注意：新增用 POST
+    Route::delete('/calendars', [CalendarController::class, 'delete']);
 
     Route::get('/calendar_event', [CalendarEventController::class, 'getDefaultEvents']);
     Route::get('/calendar_events', [CalendarEventController::class, 'get']);

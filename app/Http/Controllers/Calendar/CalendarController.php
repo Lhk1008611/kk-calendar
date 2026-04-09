@@ -13,31 +13,29 @@ class CalendarController extends Controller
     /**
      * 获取行事历列表（分页、搜索）
      */
-    public function index(Request $request)
+    public function get(Request $request)
     {
         $user = $request->user();
-        $query = Calendar::where('user_id', $user->id);
+        $perPage = $request->get('per_page', 10);
+        $keyword = $request->input('keyword',null);
 
+        $query = Calendar::where('user_id', $user->id);
         // 搜索关键词
-        if ($request->has('keyword') && !empty($request->keyword)) {
-            $keyword = $request->keyword;
+        if ($keyword) {
             $query->where(function ($q) use ($keyword) {
                 $q->where('name', 'like', "%{$keyword}%")
                     ->orWhere('description', 'like', "%{$keyword}%");
             });
         }
-
         // 每页数量，默认10
-        $perPage = $request->get('per_page', 10);
-        $calendars = $query->orderBy('created_at', 'desc')->paginate($perPage);
-
+        $calendars = $query->orderBy('id', 'desc')->paginate($perPage);
         return response()->json($calendars);
     }
 
     /**
      * 新增行事历
      */
-    public function store(Request $request)
+    public function add(Request $request)
     {
         $user = Auth::user();
 
@@ -63,7 +61,7 @@ class CalendarController extends Controller
      * 删除行事历（支持单条或批量）
      * 前端传递 ids 数组或单个 id
      */
-    public function destroy(Request $request)
+    public function delete(Request $request)
     {
         $user = Auth::user();
         $ids = $request->input('ids', []);

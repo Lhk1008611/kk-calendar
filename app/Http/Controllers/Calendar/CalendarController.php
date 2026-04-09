@@ -28,7 +28,7 @@ class CalendarController extends Controller
             });
         }
         // 每页数量，默认10
-        $calendars = $query->orderBy('id', 'desc')->paginate($perPage);
+        $calendars = $query->orderBy('is_default', 'desc')->paginate($perPage);
         return response()->json($calendars);
     }
 
@@ -78,14 +78,12 @@ class CalendarController extends Controller
         // 确保只删除当前用户的日历
         $deletedCount = Calendar::where('user_id', $user->id)
             ->whereIn('id', $ids)
+            ->where('is_default', false)
             ->delete();
 
         if ($deletedCount === 0) {
             return response()->json(['message' => '没有找到要删除的记录或无权删除'], 404);
         }
-
-        // 如果删除了某个默认日历，可能需设置一个新的默认日历（可选）
-        // 可以在这里处理逻辑：如果用户没有任何日历了，可以创建默认日历？或者不处理。
 
         return response()->json(['message' => "成功删除 {$deletedCount} 条记录"]);
     }

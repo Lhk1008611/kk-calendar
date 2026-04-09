@@ -50,14 +50,19 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr v-for="calendar in calendars" :key="calendar.id">
-                    <td>
-                        <input
-                            type="checkbox"
-                            class="form-check-input"
-                            v-model="selectedIds"
-                            :value="calendar.id"
-                        />
+                <tr v-for="calendar in calendars" :key="calendar.id"
+                    :class="{ 'table-secondary': calendar.is_default }">
+                    <td class="align-middle">
+                        <template v-if="calendar.is_default">
+                            <!-- 默认日历：显示锁图标，不可选 -->
+                            <i class="bi bi-lock-fill text-muted" title="默认日历不可删除"></i>
+                        </template>
+                        <template v-else>
+                            <input type="checkbox"
+                                   class="form-check-input"
+                                   v-model="selectedIds"
+                                   :value="calendar.id" />
+                        </template>
                     </td>
                     <td>{{ calendar.name }}</td>
                     <td>{{ calendar.description || '-' }}</td>
@@ -240,12 +245,15 @@ const changePage = (page) => {
 
 // 全选逻辑
 const isAllSelected = computed(() => {
-    return calendars.value.length > 0 && selectedIds.value.length === calendars.value.length;
+    const selectableCalendars = calendars.value.filter(c => !c.is_default);
+    return calendars.value.length > 0 && selectedIds.value.length === selectableCalendars.length;
 });
 
 const toggleSelectAll = (e) => {
     if (e.target.checked) {
-        selectedIds.value = calendars.value.map(c => c.id);
+        selectedIds.value = calendars.value
+            .filter(c => !c.is_default)
+            .map(c => c.id);
     } else {
         selectedIds.value = [];
     }
@@ -285,6 +293,7 @@ const confirmDelete = async () => {
 
 // 修改原有的删除选中方法
 const deleteSelected = () => {
+
     if (selectedIds.value.length === 0) return;
     openDeleteModal(selectedIds.value);
 };

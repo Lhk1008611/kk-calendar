@@ -45,8 +45,8 @@ class CalendarEventController extends Controller
         if ($start && $end) {
             $query->where(function ($q) use ($start, $end) {
                 // 条件1：事件时间与查询范围有重叠
-                $q->where('start_time', '<', $end)
-                    ->where('end_time', '>', $start);
+                $q->where('start_time', '<=', $end)
+                    ->where('end_time', '>=', $start);
             })->orWhere(function ($q) use ($start) {
                 // 条件2：重复事件且重复结束日期大于查询开始时间
                 $q->whereNotNull('rrule')

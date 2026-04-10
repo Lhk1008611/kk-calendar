@@ -32,7 +32,7 @@
                 class="form-control"
                 :class="{ 'is-invalid': errors.password }"
                 v-model="formData.password"
-                placeholder="至少6位"
+                placeholder="至少8位"
             />
             <div v-if="errors.password" class="invalid-feedback">{{ errors.password }}</div>
         </div>

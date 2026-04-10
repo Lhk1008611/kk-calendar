@@ -1,8 +1,8 @@
 <template>
     <div class="calendar-container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0">{{ calendar.name }}</h4>
-        </div>
+<!--        <div class="d-flex justify-content-between align-items-center mb-4">-->
+<!--            <h4 class="mb-0">{{ calendar.name }}</h4>-->
+<!--        </div>-->
 
         <FullCalendar
             ref="fullCalendarRef"
@@ -245,12 +245,13 @@ const calendarOptions = {
     slotLabelInterval: '00:30:00', // 标签显示间隔 30 分钟
     slotMinTime: '08:00:00',       // 时间轴从 8:00 开始
     slotMaxTime: '24:00:00',       // 时间轴结束时间（可根据需要调整）
-    height: 800,
+    height: 700,
     allDaySlot: true,               // 显示全天事件
     editable: true,       // 可拖动调整
     selectable: true,     // 可选中日期
     selectMirror: true,
     dayMaxEvents: true,   // 限制每日显示事件数量
+    defaultTimedEventDuration : "01:00:00",
     events: async function (info, successCallback, failureCallback) {
         await getDefaultEvents(info, successCallback, failureCallback)
     },
@@ -389,7 +390,6 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
                 return data;
             })
         }
-        console.log(events)
         successCallback(events);
     } catch (error) {
         failureCallback(error);
@@ -481,7 +481,6 @@ const submitEvent = async () => {
             fullCalendarRef.value.getApi().refetchEvents();
         }
     } catch (error) {
-        console.error(error);
         eventError.value = error.response?.data?.message || '添加失败，请重试';
     } finally {
         eventLoading.value = false;
@@ -570,7 +569,6 @@ const updateEvent = async () => {
             rrule.until = editForm.value.repeat_until;
         data.rrule = rrule;
     }
-    console.log(data);
 
     try {
         await api.patch(`/calendar_event/${editForm.value.id}`, data);
@@ -613,7 +611,6 @@ const updateEventDate = async (info) => {
         if (rrule) {
             data.rrule = rrule;
             data.rrule.dtstart = data.start_time;
-            data.rrule.duration = null;
         }
         await api.patch(`/calendar_event/${event.id}`, data);
         // 刷新日历
@@ -623,6 +620,7 @@ const updateEventDate = async (info) => {
     } catch (error) {
         console.error('更新失败', error);
         // 如果失败，可重新加载以恢复原状态
+        toast.error('更新失败')
     }
 };
 

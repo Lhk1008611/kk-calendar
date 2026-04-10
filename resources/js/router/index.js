@@ -15,13 +15,13 @@ const routes = [
         meta: {requiresGuest: true} // 未登录才能访问
     },
     {
-        path: '/dashboard',
+        path: '/calendar',
         component: Layout,
         meta: {requiresAuth: true},
         children: [
             {
                 path: '',
-                name: 'Dashboard',
+                name: 'Calendar',
                 component: Calendar
             },
             {
@@ -70,9 +70,9 @@ router.beforeEach(async (to, from, next) => {
         return;
     }
 
-    // 如果访问的是游客页面（如登录页），但已经登录，则跳转到 dashboard
+    // 如果访问的是游客页面（如登录页），但已经登录，则跳转到 calendar
     if (to.meta.requiresGuest && authStore.isAuthenticated) {
-        next({name: 'Dashboard'});
+        next({name: 'Calendar'});
         return;
     }
     // 其他情况放行

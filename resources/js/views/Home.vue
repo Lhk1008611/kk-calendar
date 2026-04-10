@@ -174,7 +174,7 @@ const handleLogin = async (formData) => {
     } finally {
         loginLoading.value = false
     }
-    await router.push({name: 'Dashboard'});
+    await router.push({name: 'Calendar'});
 }
 
 const handleRegister = async (formData) => {

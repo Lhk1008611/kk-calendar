@@ -4,7 +4,7 @@
         <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm px-4">
             <div class="container-fluid">
                 <!-- 左侧：日历图标 -->
-                <router-link to="/dashboard" class="navbar-brand d-flex align-items-center">
+                <router-link to="/calendar" class="navbar-brand d-flex align-items-center">
                     <i class="bi bi-calendar3 fs-4 me-2"></i>
                     <span class="fw-semibold">行事历</span>
                 </router-link>

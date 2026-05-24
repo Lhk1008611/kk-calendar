@@ -190,17 +190,18 @@ const handleRegister = async (formData) => {
         // 2. 发起登录请求
         const response = await api.post('/register', formData);
 
-        message.text = response.message || '注册成功，请登录'
+        // 3.注册成功自动登录
+        authStore.setUser(response.data);
+        message.text = response.message || '注册成功'
         message.type = 'success'
-        activeTab.value = 'login'
-        // 可选：自动填充登录邮箱
-        // 由于表单数据未传出，此处无法自动填充，但可以通过ref获取登录组件的formData并设置，可后续优化
+        await router.push({name: 'Calendar'});
     } catch {
         message.text = '注册失败'
         message.type = 'danger'
     } finally {
         registerLoading.value = false
     }
+
 }
 </script>
 

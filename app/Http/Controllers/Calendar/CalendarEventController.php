@@ -90,6 +90,7 @@ class CalendarEventController extends Controller
 
     /**
      * 新增事件
+     * @throws \DateMalformedStringException
      */
     public function add(Request $request)
     {
@@ -113,6 +114,9 @@ class CalendarEventController extends Controller
             $data['rrule_until'] = $data['rrule']['until'];
             if (!$data['all_day']){
                 $data['rrule']['duration'] = $this->formatDuration($data['end_time'], $data['start_time']);
+            }else{
+                $endTime =  new DateTime($data['end_time']);
+                $data['rrule']['dtstart'] = $endTime->format('Y-m-d');
             }
         }
         $event = CalendarEvent::create($data);
@@ -151,16 +155,32 @@ class CalendarEventController extends Controller
             'permission' => 'nullable|integer|in:1,2,3',
         ]);
 
+        // 将重复事件改为非重复事件
         if ($event->rrule && empty($data['rrule'])) {
             $data['rrule'] = null;
         }
-        if (!empty($data['rrule']) && !$data['all_day']) {
-            $data['rrule']['duration'] = $this->formatDuration($data['end_time'], $data['start_time']);
+
+        // 修改重复事件
+        if (!empty($data['rrule'])) {
+            // 计算非整日的重复事件的事件间隔
+            if (!$data['all_day']){
+                $data['rrule']['duration'] = $this->formatDuration($data['end_time'], $data['start_time']);
+            }else{
+                $endTime =  new DateTime($data['end_time']);
+                $data['rrule']['dtstart'] = $endTime->format('Y-m-d');
+            }
+            // 普通事件修改为重复事件需要填充 rrule_until 字段
+            if (empty($event->rrule)) {
+                $data['rrule_until'] = $data['rrule']['until'];
+                var_dump($data['rrule_until']);
+            }
         }
 
+        // 将重复事件拖到整日事件
         if ($data['all_day']) {
             $oldDuration = $event->rrule['duration'] ?? [];
             $newDuration = $data['rrule']['duration'] ?? [];
+            // 确保是重复事件拖动
             if (!empty($oldDuration) && !empty($newDuration)) {
                 unset($data['rrule']['duration']);
             }

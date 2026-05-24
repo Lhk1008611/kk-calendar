@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Calendar;
 
 use App\Http\Controllers\Controller;
 use App\Models\Calendar;
+use App\Models\CalendarEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CalendarController extends Controller
@@ -75,16 +77,59 @@ class CalendarController extends Controller
             throw ValidationException::withMessages(['ids' => '请选择要删除的记录']);
         }
 
-        // 确保只删除当前用户的日历
-        $deletedCount = Calendar::where('user_id', $user->id)
-            ->whereIn('id', $ids)
-            ->where('is_default', false)
-            ->delete();
-
-        if ($deletedCount === 0) {
+        try {
+            $deletedCounts = DB::transaction(function () use ($ids, $user) {
+                $counts = [];
+                // 确保只删除当前用户的日历
+                $counts['calendarCount'] = Calendar::where('user_id', $user->id)
+                    ->whereIn('id', $ids)
+                    ->where('is_default', false)
+                    ->delete();
+                // 删除日历下的所有事件
+                $counts['eventCount'] = CalendarEvent::whereIn('calendar_id', $ids)
+                    ->delete();
+                return $counts;
+            });
+        } catch (\Throwable $e) {
+            // 记录日志（可选）
+            \Log::error('删除日历失败：' . $e->getMessage(), ['exception' => $e]);
+            // 返回统一错误响应
+            return response()->json([
+                'message' => '删除日历失败',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+        $calendarCount = $deletedCounts['calendarCount'];
+        $eventCount = $deletedCounts['eventCount'];
+        if ($calendarCount === 0) {
             return response()->json(['message' => '没有找到要删除的记录或无权删除'], 404);
         }
+        return response()->json(['message' => "成功删除 {$calendarCount} 个日历记录和其中的 {$eventCount} 个事件"]);
+    }
 
-        return response()->json(['message' => "成功删除 {$deletedCount} 条记录"]);
+    public function update(Request $request, $id)
+    {
+        $user = Auth::user();
+        $calendar = Calendar::where('user_id', $user->id)->findOrFail($id);
+
+        // 如果该日历是默认日历，则不允许修改默认标志为 false；但可以修改其他字段
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'color' => 'nullable|string|max:7',
+            'is_default' => 'sometimes|boolean',
+            'visibility' => 'sometimes|integer|in:1,2,3',
+        ]);
+
+        // 如果要设置为默认日历，则需要清除其他默认日历
+        if (!$calendar->is_default){
+            if (isset($data['is_default']) && $data['is_default'] === true) {
+                Calendar::where('user_id', $user->id)
+                    ->where('is_default', true)
+                    ->update(['is_default' => false]);
+            }
+        }
+        $calendar->update($data);
+        return response()->json($calendar);
     }
 }

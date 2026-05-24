@@ -51,8 +51,10 @@
                 </thead>
                 <tbody>
                 <tr v-for="calendar in calendars" :key="calendar.id"
+                    @click="openEditModal(calendar)"
+                    style="cursor: pointer;"
                     :class="{ 'table-secondary': calendar.is_default }">
-                    <td class="align-middle">
+                    <td class="align-middle" @click.stop> <!-- 阻止冒泡，避免点击复选框时触发行点击 -->
                         <template v-if="calendar.is_default">
                             <!-- 默认日历：显示锁图标，不可选 -->
                             <i class="bi bi-lock-fill text-muted" title="默认日历不可删除"></i>
@@ -61,7 +63,7 @@
                             <input type="checkbox"
                                    class="form-check-input"
                                    v-model="selectedIds"
-                                   :value="calendar.id" />
+                                   :value="calendar.id"/>
                         </template>
                     </td>
                     <td>{{ calendar.name }}</td>
@@ -110,48 +112,48 @@
             </div>
         </div>
 
-        <!-- 新增日历模态框 -->
-        <div class="modal fade" id="addCalendarModal" tabindex="-1" data-bs-backdrop="static">
+        <!-- 新增/编辑共用模态框 -->
+        <div class="modal fade" id="calendarModal" tabindex="-1" data-bs-backdrop="static">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">新增日历</h5>
+                        <h5 class="modal-title">{{ modalTitle }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form @submit.prevent="submitAdd">
+                        <form @submit.prevent="submitCalendar">
                             <div class="mb-3">
                                 <label class="form-label">名称 *</label>
-                                <input type="text" class="form-control" v-model="newCalendar.name" required>
+                                <input type="text" class="form-control" v-model="formData.name" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">描述</label>
-                                <textarea class="form-control" rows="2" v-model="newCalendar.description"></textarea>
+                                <textarea class="form-control" rows="2" v-model="formData.description"></textarea>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">颜色</label>
-                                <input type="color" class="form-control form-control-color" v-model="newCalendar.color">
+                                <input type="color" class="form-control form-control-color" v-model="formData.color">
                             </div>
                             <div class="mb-3 form-check">
                                 <input type="checkbox" class="form-check-input" id="isDefault"
-                                       v-model="newCalendar.is_default">
+                                       v-model="formData.is_default">
                                 <label class="form-check-label" for="isDefault">设为默认日历</label>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">可见性</label>
-                                <select class="form-select" v-model="newCalendar.visibility">
+                                <select class="form-select" v-model="formData.visibility">
                                     <option :value="1">仅自己</option>
                                     <option :value="2">共享用户</option>
                                     <option :value="3">公开</option>
                                 </select>
                             </div>
-                            <div class="alert alert-danger" v-if="addError">{{ addError }}</div>
+                            <div class="alert alert-danger" v-if="formError">{{ formError }}</div>
                         </form>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="button" class="btn btn-primary" @click="submitAdd" :disabled="addLoading">
-                            <span v-if="addLoading" class="spinner-border spinner-border-sm me-1"></span>
+                        <button type="button" class="btn btn-primary" @click="submitCalendar" :disabled="loading">
+                            <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
                             保存
                         </button>
                     </div>
@@ -195,16 +197,6 @@ const toast = useToast();
 const calendars = ref([]);
 const searchKeyword = ref('');
 const selectedIds = ref([]);
-const addLoading = ref(false);
-const addError = ref('');
-const newCalendar = ref({
-    name: '',
-    description: '',
-    color: '#3174ad',
-    is_default: false,
-    visibility: 1,
-});
-let addModal = null;
 const deleteModal = ref(null);
 const deleteLoading = ref(false);
 // 分页
@@ -212,6 +204,52 @@ const currentPage = ref(1);
 const totalPages = ref(1);
 const totalCount = ref(0);
 const perPage = 10;                 // 每页条数（固定或从后端获取）
+
+const modalTitle = ref('新增日历');
+const formData = ref({
+    id: null,
+    name: '',
+    description: '',
+    color: '#3174ad',
+    is_default: false,
+    visibility: 1,
+});
+const loading = ref(false);
+const formError = ref('');
+let modal = null;
+
+const openModal = (title, data = null) => {
+    modalTitle.value = title;
+    if (data) {
+        formData.value = {...data};
+    } else {
+        resetForm();
+    }
+    formError.value = '';
+    modal = new Modal(document.getElementById('calendarModal'));
+    modal.show();
+};
+
+const resetForm = () => {
+    formData.value = {
+        id: null,
+        name: '',
+        description: '',
+        color: '#3174ad',
+        is_default: false,
+        visibility: 1,
+    };
+};
+
+// 打开新增模态框
+const openAddModal = () => {
+    openModal('新增日历');
+};
+
+// 打开编辑模态框
+const openEditModal = (calendar) => {
+    openModal('修改日历', calendar);
+};
 
 
 // 获取日历列表
@@ -243,12 +281,13 @@ const changePage = (page) => {
     fetchCalendars();
 };
 
-// 全选逻辑
+// 全选逻辑:计算是否全选
 const isAllSelected = computed(() => {
     const selectableCalendars = calendars.value.filter(c => !c.is_default);
     return calendars.value.length > 0 && selectedIds.value.length === selectableCalendars.length;
 });
 
+// 全选逻辑:点击全选框执行
 const toggleSelectAll = (e) => {
     if (e.target.checked) {
         selectedIds.value = calendars.value
@@ -298,37 +337,37 @@ const deleteSelected = () => {
     openDeleteModal(selectedIds.value);
 };
 
-// 打开新增模态框
-const openAddModal = () => {
-    newCalendar.value = {name: '', description: '', color: '#3174ad', is_default: false, visibility: 1};
-    addError.value = '';
-    addModal = new Modal(document.getElementById('addCalendarModal'));
-    addModal.show();
-};
-
-// 提交新增
-const submitAdd = async () => {
-    if (!newCalendar.value.name) {
-        addError.value = '请填写名称';
+// 提交表单（新增或更新）
+const submitCalendar = async () => {
+    if (!formData.value.name) {
+        formError.value = '请填写名称';
         return;
     }
-    addLoading.value = true;
-    addError.value = '';
+    loading.value = true;
+    formError.value = '';
     try {
-        await api.post('/calendar', newCalendar.value);
-        toast.success('新增成功');
-        addModal.hide();
-        await fetchCalendars();
+        let response;
+        if (formData.value.id) {
+            // 更新
+            await api.patch(`/calendar/${formData.value.id}`, formData.value);
+            toast.success('修改成功');
+        } else {
+            // 新增
+            await api.post('/calendar', formData.value);
+            toast.success('新增成功');
+        }
+        modal.hide();
+        await fetchCalendars(); // 刷新列表
     } catch (error) {
         if (error.response?.status === 422) {
             const errors = error.response.data.errors;
-            addError.value = Object.values(errors).flat().join(' ');
+            formError.value = Object.values(errors).flat().join(' ');
         } else {
-            addError.value = error.response?.data?.message || '新增失败';
+            formError.value = error.response?.data?.message || '操作失败';
             removeBackdrops();
         }
     } finally {
-        addLoading.value = false;
+        loading.value = false;
     }
 };
 

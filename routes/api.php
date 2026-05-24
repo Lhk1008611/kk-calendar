@@ -33,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function (){
     Route::get('/calendars', [CalendarController::class, 'get']);
     Route::post('/calendar', [CalendarController::class, 'add']);  // 注意：新增用 POST
     Route::delete('/calendars', [CalendarController::class, 'delete']);
+    Route::patch('/calendar/{id}', [CalendarController::class, 'update']); // 注意：路径参数放在 URL 中
 
     Route::get('/calendar_event', [CalendarEventController::class, 'getDefaultEvents']);
     Route::get('/calendar_events', [CalendarEventController::class, 'get']);

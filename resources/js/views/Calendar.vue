@@ -1,8 +1,8 @@
 <template>
     <div class="calendar-container">
-<!--        <div class="d-flex justify-content-between align-items-center mb-4">-->
-<!--            <h4 class="mb-0">{{ calendar.name }}</h4>-->
-<!--        </div>-->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0">{{ calendar.name }}</h4>
+        </div>
 
         <FullCalendar
             ref="fullCalendarRef"
@@ -251,7 +251,7 @@ const calendarOptions = {
     selectable: true,     // 可选中日期
     selectMirror: true,
     dayMaxEvents: true,   // 限制每日显示事件数量
-    defaultTimedEventDuration : "01:00:00",
+    defaultTimedEventDuration: "01:00:00",
     events: async function (info, successCallback, failureCallback) {
         await getDefaultEvents(info, successCallback, failureCallback)
     },
@@ -276,7 +276,9 @@ const calendarOptions = {
     eventDidMount: (info) => {
         const {event, el} = info;
         const currentEvent = allEvents.find(value => String(value.id) === String(event.id));
-        if (!currentEvent) {return;}
+        if (!currentEvent) {
+            return;
+        }
         const isOccurrence = currentEvent.rrule ?? false;
         const originalEventId = event.id;
         const startDate = event.start ? event.start.toISOString() : null;
@@ -383,7 +385,7 @@ const getDefaultEvents = async function (info, successCallback, failureCallback)
                     if (!event.allDay) {
                         data.duration = event.rrule.duration;
                     }
-                    data.exdate = event.rrule.exdate ?? []
+                    data.exdate = event.rrule.exdate ?? [];
                 }
                 data.start = event.start_time;
                 data.end = event.end_time;
@@ -465,7 +467,7 @@ const submitEvent = async () => {
         };
         if (eventForm.value.repeat_until) {
             const until = new Date(eventForm.value.repeat_until);
-            until.setHours(until.getHours()+16);    // 显示最后一天重复事件
+            until.setHours(until.getHours() + 16);    // 显示最后一天重复事件
             rrule.until = until.toISOString();
         }
         data.rrule = rrule;
@@ -526,7 +528,7 @@ const openEditModal = (event) => {
         end_time: endTime,
         all_day: event.allDay || false,
         repeat_type: rrule ? rrule.freq : '',
-        repeat_until: rrule ? rrule.until : '',
+        repeat_until: rrule ? rrule.until.split('T')[0] : '',
         color: event.backgroundColor || '#3788d8',
     };
     editError.value = '';
@@ -565,8 +567,10 @@ const updateEvent = async () => {
     if (editForm.value.repeat_type) {
         rrule.freq = editForm.value.repeat_type
         rrule.dtstart = new Date(editForm.value.start_time).toISOString();
-        if (editForm.value.repeat_until)
-            rrule.until = editForm.value.repeat_until;
+        if (editForm.value.repeat_until) {
+            // 将 yyyy:mm:dd 拼接为 yyyy:mm:ddT16:00:00.000Z UTC时间
+            rrule.until = `${editForm.value.repeat_until}T16:00:00.000Z`;
+        }
         data.rrule = rrule;
     }
 
@@ -673,7 +677,7 @@ const deleteEventSeries = async (originalEventId) => {
 const deleteSingleOccurrence = async (originalEventId, startDate) => {
     const allDay = allEvents.find(value => String(value.id) === String(originalEventId)).all_day;
     const data = {
-        all_day : allDay,
+        all_day: allDay,
         date: startDate,
     }
     if (allDay) {

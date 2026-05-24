@@ -39,20 +39,24 @@ class CalendarEventController extends Controller
         $start = $params['start'];
         $end = $params['end'];
 
-        $query = CalendarEvent::where('calendar_id', $defaultCalendar->id)
-            ->select(['id', 'title', 'start_time', 'end_time', 'all_day', 'color', 'description', 'rrule']);
+        $query = CalendarEvent::where(function (Builder $query)use($defaultCalendar) {
+            $query->whereCalendarId($defaultCalendar->id);
+        })->select(['id','calendar_id', 'title', 'start_time', 'end_time', 'all_day', 'color', 'description', 'rrule']);
 
         if ($start && $end) {
-            $query->where(function ($q) use ($start, $end) {
-                // 条件1：事件时间与查询范围有重叠
-                $q->where('start_time', '<=', $end)
-                    ->where('end_time', '>=', $start);
-            })->orWhere(function ($q) use ($start) {
-                // 条件2：重复事件且重复结束日期大于查询开始时间
-                $q->whereNotNull('rrule')
-                    ->where('rrule_until', '>', $start);
+            $query->where(function (Builder $query)use($start, $end) {
+                $query->where(function ($q) use ($start, $end) {
+                    // 条件1：事件时间与查询范围有重叠
+                    $q->where('start_time', '<=', $end)
+                        ->where('end_time', '>=', $start);
+                })->orWhere(function ($q) use ($start) {
+                    // 条件2：重复事件且重复结束日期大于查询开始时间
+                    $q->whereNotNull('rrule')
+                        ->where('rrule_until', '>', $start);
+                });
             });
         }
+
         $events = $query->orderBy('id', 'asc')->get();
         return response()->json([
             'calendar' => $defaultCalendar,
